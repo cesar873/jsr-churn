@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JSR Churn Analysis — AgenCFO</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --blue:       #1390eb;
+  --blue-soft:  rgba(19,144,235,0.18);
+  --green:      #22c55e;
+  --green-soft: rgba(34,197,94,0.18);
+  --red:        #ef4444;
+  --red-soft:   rgba(239,68,68,0.18);
+  --amber:      #f59e0b;
+  --purple:     #c084fc;
+  --yellow:     #fde047;
+  --card:       rgba(255,255,255,0.04);
+  --card-strong:rgba(255,255,255,0.07);
+  --card-border:rgba(255,255,255,0.08);
+  --text:       #ffffff;
+  --muted:      rgba(255,255,255,0.55);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: linear-gradient(180deg,#000000 0%,#001a2e 50%,#003b6f 100%);
+  background-attachment: fixed;
+  min-height: 100vh;
+  color: var(--text);
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 13px;
+}
+
+/* ── Header ── */
+header {
+  padding: 22px 32px 18px;
+  border-bottom: 1px solid var(--card-border);
+  display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;
+  background: rgba(0,0,0,0.25);
+  backdrop-filter: blur(12px);
+  position: sticky; top: 0; z-index: 100;
+}
+.logo { font-family: 'Anton', sans-serif; font-size: 26px; letter-spacing: 1px; }
+.header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.header-title { font-family: 'Anton', sans-serif; font-size: 14px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); }
+.header-badges { display: flex; gap: 8px; flex-wrap: wrap; }
+.badge {
+  font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 500;
+  padding: 3px 10px; border-radius: 20px; border: 1px solid var(--card-border);
+  color: var(--muted); background: var(--card);
+}
+.badge.danger { border-color: rgba(239,68,68,0.4); color: var(--red); background: var(--red-soft); }
+.badge.warn   { border-color: rgba(245,158,11,0.4); color: var(--amber); background: rgba(245,158,11,0.12); }
+.badge.info   { border-color: rgba(19,144,235,0.4); color: var(--blue); background: var(--blue-soft); }
+
+/* ── Filters ── */
+.filters {
+  padding: 10px 32px;
+  border-bottom: 1px solid var(--card-border);
+  background: rgba(0,0,0,0.15);
+  display: flex; gap: 16px; flex-wrap: wrap; align-items: center;
+}
+.filters label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin-right: 4px; }
+select {
+  background: var(--card-strong); border: 1px solid var(--card-border);
+  color: var(--text); border-radius: 6px; padding: 5px 10px;
+  font-family: 'DM Sans', sans-serif; font-size: 12px; cursor: pointer;
+}
+select:focus { outline: none; border-color: var(--blue); }
+.reset-btn {
+  margin-left: auto; background: transparent; border: 1px solid var(--card-border);
+  color: var(--muted); border-radius: 6px; padding: 5px 14px;
+  font-family: 'DM Sans', sans-serif; font-size: 12px; cursor: pointer;
+}
+.reset-btn:hover { border-color: var(--blue); color: var(--blue); }
+
+/* ── Grid ── */
+.page { padding: 28px 32px; display: grid; gap: 18px; }
+.row-5 { display: grid; grid-template-columns: repeat(5,1fr); gap: 14px; }
+.row-2-1 { display: grid; grid-template-columns: 2fr 1fr; gap: 18px; }
+.row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; }
+.row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+
+/* ── Panel ── */
+.panel {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 20px;
+  backdrop-filter: blur(12px);
+}
+.panel h2 {
+  font-family: 'Anton', sans-serif;
+  font-size: 13px; text-transform: uppercase; letter-spacing: 1.2px;
+  color: var(--text); margin-bottom: 3px;
+}
+.panel .sub { color: var(--muted); font-size: 11px; margin-bottom: 14px; }
+
+/* ── KPI cards ── */
+.kpi .label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+  color: var(--muted); margin-bottom: 6px;
+}
+.kpi .value {
+  font-family: 'Anton', sans-serif;
+  font-size: 34px; letter-spacing: 0.5px; line-height: 1;
+}
+.kpi .delta {
+  font-size: 11px; margin-top: 7px;
+  padding: 3px 8px; border-radius: 4px; display: inline-block; font-weight: 500;
+}
+.delta.down { background: var(--red-soft);              color: var(--red);   }
+.delta.warn { background: rgba(245,158,11,0.12);        color: var(--amber); }
+.delta.up   { background: var(--green-soft);            color: var(--green); }
+.delta.info { background: var(--blue-soft);             color: var(--blue);  }
+.delta.muted{ background: rgba(255,255,255,0.06);       color: var(--muted); }
+
+/* ── Speed-to-churn funnel ── */
+.funnel-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.funnel-row:last-child { border-bottom: none; }
+.funnel-label { font-size: 12px; color: var(--muted); min-width: 128px; }
+.funnel-bar-bg { flex: 1; height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden; }
+.funnel-bar { height: 8px; border-radius: 4px; }
+.funnel-pct { font-family: 'Anton', sans-serif; font-size: 13px; min-width: 36px; text-align: right; }
+.funnel-n { font-size: 10px; color: var(--muted); min-width: 30px; text-align: right; }
+
+/* ── Leaderboard ── */
+.lb-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.lb-row:last-child { border-bottom: none; }
+.lb-name { font-size: 12px; min-width: 136px; }
+.lb-bar-bg { flex: 1; height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; }
+.lb-bar { height: 6px; border-radius: 3px; }
+.lb-pct { font-family: 'Anton', sans-serif; font-size: 13px; min-width: 38px; text-align: right; }
+.lb-meta { font-size: 11px; color: var(--muted); min-width: 52px; text-align: right; }
+
+/* ── Heatmap matrix ── */
+.matrix { width: 100%; border-collapse: collapse; font-size: 12px; }
+.matrix th {
+  padding: 7px 12px; text-align: left;
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px;
+  color: var(--muted); font-weight: 600;
+  border-bottom: 1px solid var(--card-border);
+}
+.matrix td { padding: 7px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.matrix tr:last-child td { border-bottom: none; }
+.heat {
+  display: inline-block; padding: 2px 8px; border-radius: 5px;
+  font-weight: 700; font-size: 11px; letter-spacing: 0.3px;
+}
+.heat-high { background: var(--red-soft);               color: var(--red);   }
+.heat-mid  { background: rgba(245,158,11,0.14);         color: var(--amber); }
+.heat-low  { background: var(--green-soft);             color: var(--green); }
+.heat-info { background: var(--blue-soft);              color: var(--blue);  }
+.matrix-n  { font-size: 10px; color: var(--muted); margin-left: 4px; }
+.matrix tr:last-child td { font-weight: 600; background: rgba(255,255,255,0.03); }
+
+/* ── Data table ── */
+.search-bar {
+  width: 100%; background: var(--card-strong); border: 1px solid var(--card-border);
+  color: var(--text); border-radius: 7px; padding: 8px 13px;
+  font-family: 'DM Sans', sans-serif; font-size: 12px; margin-bottom: 12px;
+}
+.search-bar:focus { outline: none; border-color: var(--blue); }
+.table-wrap { overflow: auto; max-height: 360px; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+thead th {
+  position: sticky; top: 0;
+  background: rgba(0,10,30,0.85); backdrop-filter: blur(8px);
+  padding: 7px 12px; text-align: left;
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px;
+  color: var(--muted); font-weight: 600;
+  border-bottom: 1px solid var(--card-border);
+  cursor: pointer; white-space: nowrap;
+}
+thead th:hover { color: var(--text); }
+tbody tr { border-bottom: 1px solid rgba(255,255,255,0.04); }
+tbody tr:hover { background: rgba(255,255,255,0.02); }
+tbody td { padding: 6px 12px; }
+.chip {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.3px;
+}
+.chip-meta    { background: var(--blue-soft);             color: var(--blue);   }
+.chip-google  { background: var(--green-soft);            color: var(--green);  }
+.chip-linkedin{ background: rgba(245,158,11,0.14);        color: var(--amber);  }
+.chip-other   { background: rgba(255,255,255,0.06);       color: var(--muted);  }
+
+.ct-imm   { color: var(--red);   font-weight: 700; font-variant-numeric: tabular-nums; }
+.ct-early { color: var(--amber); font-weight: 600; font-variant-numeric: tabular-nums; }
+.ct-mid   { color: var(--text);  font-variant-numeric: tabular-nums; }
+.ct-long  { color: var(--green); font-variant-numeric: tabular-nums; }
+
+.pill { display: inline-block; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 1px 5px; border-radius: 3px; margin-left: 5px; vertical-align: middle; }
+.pill-imm   { background: var(--red-soft);            color: var(--red);   }
+.pill-early { background: rgba(245,158,11,0.14);      color: var(--amber); }
+.pill-long  { background: var(--green-soft);          color: var(--green); }
+
+#no-data { display: none; text-align: center; color: var(--muted); padding: 28px; font-size: 12px; }
+
+/* ── Cell bar ── */
+.cell-bar { display: flex; align-items: center; gap: 8px; }
+.cell-bar .b { display: inline-block; height: 4px; border-radius: 2px; flex-shrink: 0; }
+
+@media(max-width:1100px) {
+  .row-5 { grid-template-columns: repeat(3,1fr); }
+  .row-2-1,.row-3,.row-2 { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="logo"><span style="color:#fff">AGEN</span><span style="color:#1390eb">CFO</span></div>
+  <div class="header-right">
+    <span class="header-title">JSR — Churn Analysis</span>
+    <div class="header-badges">
+      <span class="badge danger" id="badge-ec">67.8% early churn &le;3 mo</span>
+      <span class="badge warn"   id="badge-avg">Avg lifetime 3.6 mo</span>
+      <span class="badge info">267 contracts &nbsp;·&nbsp; Jul 2024 – Jan 2026</span>
+    </div>
+  </div>
+</header>
+
+<!-- Filters -->
+<div class="filters">
+  <div><label>Service</label>
+    <select id="f-svc"><option value="">All Services</option>
+      <option>Meta Ads Management</option><option>Google Ads Management</option>
+      <option>LinkedIn Ads Management</option><option>Bing Ads Management</option>
+      <option>TikTok Ads Management</option><option>Snap Ads Management</option>
+    </select></div>
+  <div><label>Source</label>
+    <select id="f-src"><option value="">All Sources</option>
+      <option>Upwork</option><option>Referral</option><option>Inbound</option><option>Email</option>
+    </select></div>
+  <div><label>Account Manager</label>
+    <select id="f-am"><option value="">All AMs</option>
+      <option>Brennan Haelig</option><option>Brandin Good</option>
+      <option>Nic Velasco</option><option>Matt Evanoff</option>
+    </select></div>
+  <div><label>Team Member</label>
+    <select id="f-tm"><option value="">All Members</option>
+      <option>Kyle Tuttle</option><option>Carson Pavia</option><option>Jonathan Vinther</option>
+      <option>Chris Erickson</option><option>JJ Crawford</option>
+      <option>Anthony Stuart</option><option>Max Trotter</option><option>Graeme Edment</option>
+    </select></div>
+  <button class="reset-btn" onclick="resetFilters()">Reset</button>
+</div>
+
+<div class="page">
+
+  <!-- KPIs -->
+  <div class="row-5">
+    <div class="panel kpi">
+      <div class="label">Early Churn Rate</div>
+      <div class="value" id="kpi-er" style="color:var(--red)">67.8%</div>
+      <div class="delta down" id="kpi-er-d">181 of 267 contracts</div>
+    </div>
+    <div class="panel kpi">
+      <div class="label">Avg Months to Churn</div>
+      <div class="value" id="kpi-avg" style="color:var(--amber)">3.6</div>
+      <div class="delta warn" id="kpi-med">Median: 2 months</div>
+    </div>
+    <div class="panel kpi">
+      <div class="label">Immediate Churn</div>
+      <div class="value" id="kpi-imm" style="color:var(--red)">9.4%</div>
+      <div class="delta down" id="kpi-imm-d">25 contracts · $30K</div>
+    </div>
+    <div class="panel kpi">
+      <div class="label">Long-term Rate (7+ mo)</div>
+      <div class="value" id="kpi-lt" style="color:var(--green)">15.4%</div>
+      <div class="delta up" id="kpi-lt-d">41 contracts · $62K</div>
+    </div>
+    <div class="panel kpi">
+      <div class="label">Revenue in Early Churn</div>
+      <div class="value" id="kpi-rev-ec" style="color:var(--red)">64%</div>
+      <div class="delta down" id="kpi-rev-ec-d">$208K of $324K total</div>
+    </div>
+  </div>
+
+  <!-- Monthly trend + Speed funnel -->
+  <div class="row-2-1">
+    <div class="panel">
+      <h2>Monthly Churn Volume &amp; Early Churn Rate</h2>
+      <div class="sub">Contracts ended per month with early-churn % overlay</div>
+      <div style="position:relative;height:230px"><canvas id="chart-monthly"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2>Speed to Churn</h2>
+      <div class="sub">Distribution of contract lifetimes</div>
+      <div id="funnel-wrap"></div>
+    </div>
+  </div>
+
+  <!-- 3-column segment row -->
+  <div class="row-3">
+    <div class="panel">
+      <h2>Early Churn Rate by Source</h2>
+      <div class="sub">% churned &le;3 mo · avg lifetime overlay</div>
+      <div style="position:relative;height:200px"><canvas id="chart-src"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2>Early Churn Rate by Service</h2>
+      <div class="sub">Ranked highest to lowest</div>
+      <div style="position:relative;height:200px"><canvas id="chart-svc"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2>Revenue by Churn Timing</h2>
+      <div class="sub">Share of retainer revenue by how quickly clients left</div>
+      <div style="position:relative;height:200px"><canvas id="chart-rev"></canvas></div>
+    </div>
+  </div>
+
+  <!-- AM + Team leaderboards -->
+  <div class="row-2">
+    <div class="panel">
+      <h2>Account Manager Performance</h2>
+      <div class="sub">Early churn rate &amp; avg months retained — ranked worst to best</div>
+      <div id="am-board"></div>
+    </div>
+    <div class="panel">
+      <h2>Team Member Performance</h2>
+      <div class="sub">Early churn rate &amp; avg months retained — ranked worst to best</div>
+      <div id="tm-board"></div>
+    </div>
+  </div>
+
+  <!-- Service × Source heatmap -->
+  <div class="panel">
+    <h2>Early Churn Heatmap</h2>
+    <div class="sub">% of contracts churned &le;3 months — by Service &times; Source</div>
+    <div style="overflow-x:auto"><table class="matrix" id="matrix"></table></div>
+  </div>
+
+  <!-- ── CHURN REASONS ── -->
+  <div style="font-family:'Anton',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:1.8px;color:rgba(255,255,255,0.3);padding:4px 0 2px;border-top:1px solid rgba(255,255,255,0.06)">
+    Churn Reason Analysis
+  </div>
+
+  <!-- Reason overview KPIs -->
+  <div class="row-5">
+    <div class="panel kpi">
+      <div class="label">Internal / Pause</div>
+      <div class="value" id="r-kpi-0" style="color:var(--blue)">40.7%</div>
+      <div class="delta info" id="r-kpi-0d">98 contracts · avg 4.6 mo</div>
+    </div>
+    <div class="panel kpi">
+      <div class="label">Low ROAS / Lead Quality</div>
+      <div class="value" id="r-kpi-1" style="color:var(--red)">40.7%</div>
+      <div class="delta down" id="r-kpi-1d">98 contracts · avg 2.5 mo</div>
+    </div>
+    <div class="panel kpi">
+      <div class="label">Service / Comms</div>
+      <div class="value" id="r-kpi-2" style="color:var(--amber)">10.8%</div>
+      <div class="delta warn" id="r-kpi-2d">26 contracts · avg 3.9 mo</div>
+    </div>
+    <div class="panel kpi">
+      <div class="label">Poor Funnel</div>
+      <div class="value" id="r-kpi-3" style="color:var(--purple)">5.4%</div>
+      <div class="delta muted" id="r-kpi-3d">13 contracts · avg 3.7 mo</div>
+    </div>
+    <div class="panel kpi">
+      <div class="label">Bad Fit</div>
+      <div class="value" id="r-kpi-4" style="color:var(--yellow)">2.5%</div>
+      <div class="delta muted" id="r-kpi-4d">6 contracts · avg 1.3 mo</div>
+    </div>
+  </div>
+
+  <!-- Reason donut + stacked by source + stacked by service -->
+  <div class="row-3">
+    <div class="panel">
+      <h2>Reason Split</h2>
+      <div class="sub">All contracts by churn reason</div>
+      <div style="position:relative;height:210px"><canvas id="chart-reason-donut"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2>Reason by Source</h2>
+      <div class="sub">Stacked share of contracts per acquisition channel</div>
+      <div style="position:relative;height:210px"><canvas id="chart-reason-src"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2>Reason by Service</h2>
+      <div class="sub">Stacked share of contracts per service line</div>
+      <div style="position:relative;height:210px"><canvas id="chart-reason-svc"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Avg lifetime by reason + controllable split + reason×AM -->
+  <div class="row-2">
+    <div class="panel">
+      <h2>Controllable vs Uncontrollable Churn</h2>
+      <div class="sub">Low ROAS &amp; Service/Comms are within JSR's control — the rest sit with the client</div>
+      <div id="ctrl-split" style="margin-bottom:18px"></div>
+      <h2 style="margin-top:4px">Avg Lifetime by Reason</h2>
+      <div class="sub">How long clients lasted before each churn type</div>
+      <div style="position:relative;height:160px"><canvas id="chart-reason-lt"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2>Service / Comms Churn by Team Member</h2>
+      <div class="sub">Controllable reason — ranked by rate within each person's book</div>
+      <div id="tm-comms-board"></div>
+      <h2 style="margin-top:18px">Low ROAS Churn by Team Member</h2>
+      <div class="sub">Controllable reason — ranked by rate</div>
+      <div id="tm-roas-board"></div>
+    </div>
+  </div>
+
+  <!-- Reason by AM -->
+  <div class="panel">
+    <h2>Churn Reason Breakdown by Account Manager</h2>
+    <div class="sub">Stacked bar — 100% = all contracts for that AM</div>
+    <div style="position:relative;height:200px"><canvas id="chart-reason-am"></canvas></div>
+  </div>
+
+  <!-- Detail table -->
+  <div class="panel">
+    <h2>Contract Detail</h2>
+    <div class="sub">All churned contracts — click headers to sort</div>
+    <input class="search-bar" id="search" placeholder="Search client, service, team member, reason…" oninput="renderTable()">
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th onclick="sortBy('client')">Client</th>
+          <th onclick="sortBy('service')">Service</th>
+          <th onclick="sortBy('months')">Months</th>
+          <th onclick="sortBy('reason')">Churn Reason</th>
+          <th onclick="sortBy('source')">Source</th>
+          <th onclick="sortBy('team')">Team Member</th>
+          <th onclick="sortBy('owner')">AM</th>
+          <th onclick="sortBy('retainer')" style="text-align:right">Retainer</th>
+          <th onclick="sortBy('end')">Churned</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div id="no-data">No contracts match the current filters.</div>
+    </div>
+  </div>
+
+</div><!-- /page -->
+
+<script>
+// ── Set Chart.js globals ──
+Chart.defaults.color = 'rgba(255,255,255,0.55)';
+Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
+Chart.defaults.font.family = "'DM Sans', system-ui, sans-serif";
+
+const RAW = [
+['SCF Flooring','Meta Ads Management','1-Mar-25','27-Oct-26','19','Kyle Tuttle','Brandin Good','Referral','$900.00','Churned - Internal Change or Temporary Pause'],
+['Summerboard','Meta Ads Management','27-Oct-25','1-May-26','6','Jonathan Vinther','Nic Velasco','Upwork','$1,750.00','Churned - Unhappy with Service, Communication or Creatives'],
+['Summerboard','Google Ads Management','27-Oct-25','1-May-26','6','Carson Pavia','Nic Velasco','Upwork','$1,250.00','Churned - Unhappy with Service, Communication or Creatives'],
+['Atlas Arena','Meta Ads Management','6-Apr-26','30-Apr-26','0','Jacob Cummer','Matt Evanoff','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Empowers Performance','Meta Ads Management','18-Dec-25','30-Apr-26','4','Kyle Tuttle','Nic Velasco','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Axiom Learning','Meta Ads Management','21-Jan-26','29-Apr-26','3','Kyle Tuttle','Matt Evanoff','Upwork','$1,250.00','Churned - Low ROAS or Lead Quality'],
+['The Legacy Circle','Meta Ads Management','28-Aug-25','29-Apr-26','8','Anthony Stuart','Matt Evanoff','Upwork','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Cargoson','LinkedIn Ads Management','27-Feb-26','28-Apr-26','2','Chris Erickson','Matt Evanoff','Inbound','$1,250.00','Churned - Low ROAS or Lead Quality'],
+['Barkan Method Hot Yoga','Meta Ads Management','1-Dec-25','28-Apr-26','4','Anthony Stuart','Nic Velasco','Upwork','$1,200.00','Churned - Low ROAS or Lead Quality'],
+['SimpleSUB Water','Google Ads Management','2-Apr-26','27-Apr-26','0','Max Trotter','Nic Velasco','Inbound','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Thomas and Birch','Meta Ads Management','7-Aug-25','27-Apr-26','8','Kyle Tuttle','Brennan Haelig','Referral','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Hudson Wren','Meta Ads Management','10-Jul-25','27-Apr-26','9','Kyle Tuttle','Brennan Haelig','Referral','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Jiang Photography','Meta Ads Management','11-Feb-26','24-Apr-26','2','Kyle Tuttle','Nic Velasco','Referral','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Next Level UK','Google Ads Management','25-Feb-26','22-Apr-26','1','JJ Crawford','Nic Velasco','Upwork','$1,000.00','Churned - Unhappy with Service, Communication or Creatives'],
+['Red Sash Realty','Meta Ads Management','9-Mar-26','20-Apr-26','1','Jarrett M','Matt Evanoff','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Academic Instinct','Meta Ads Management','20-Feb-26','20-Apr-26','2','Anthony Stuart','Nic Velasco','Upwork','$1,700.00','Churned - Low ROAS or Lead Quality'],
+['Sentinex','Google Ads Management','20-Jan-26','20-Apr-26','3','Carson Pavia','Matt Evanoff','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Nashville Express Tours','Meta Ads Management','20-Nov-25','20-Apr-26','5','Anthony Stuart','Nic Velasco','Upwork','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Nashville Express Tours','Google Ads Management','20-Nov-25','20-Apr-26','5','JJ Crawford','Nic Velasco','Upwork','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Free Luma','Google Ads Management','24-Sep-25','17-Apr-26','6','Carson Pavia','Matt Evanoff','Upwork','$2,000.00','Churned - Internal Change or Temporary Pause'],
+['Mike Dempsey Photography','Meta Ads Management','10-Oct-25','16-Apr-26','6','Kyle Tuttle','Nic Velasco','Referral','$1,500.00','Churned - Poor Funnel Conversion / Sales Process'],
+['Eyes AI','Meta Ads Management','29-Jan-26','14-Apr-26','2','Jacob Cummer','Nic Velasco','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Nutravantix','Google Ads Management','15-Dec-25','13-Apr-26','3','Carson Pavia','Nic Velasco','Upwork','$1,200.00','Churned - Low ROAS or Lead Quality'],
+['ROSE Media','Meta Ads Management','10-Feb-26','11-Apr-26','2','Anthony Stuart','Nic Velasco','Referral','$1,250.00','Churned - Bad Fit'],
+['ROSE Media','Google Ads Management','10-Feb-26','11-Apr-26','2','Anthony Stuart','Nic Velasco','Referral','$1,250.00','Churned - Bad Fit'],
+['TreasurySavvy','LinkedIn Ads Management','9-Feb-26','10-Apr-26','2','Chris Erickson','Matt Evanoff','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Untapped Potential','Meta Ads Management','1-May-25','7-Apr-26','11','Kyle Tuttle','Brennan Haelig','Inbound','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Cover Baby','Google Ads Management','30-Sep-25','5-Apr-26','6','Carson Pavia','Nic Velasco','Upwork','$1,250.00','Churned - Internal Change or Temporary Pause'],
+['Cover Baby','Meta Ads Management','30-Sep-25','5-Apr-26','6','Jonathan Vinther','Nic Velasco','Upwork','$1,250.00','Churned - Internal Change or Temporary Pause'],
+['Jamestown Spine','Meta Ads Management','28-Feb-26','31-Mar-26','1','Nic Velasco','Nic Velasco','Inbound','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Logo Animators','Meta Ads Management','6-Mar-26','30-Mar-26','0','Jarrett M','Nic Velasco','Inbound','$2,000.00','Churned - Unhappy with Service, Communication or Creatives'],
+['National Park Mystery Series','Google Ads Management','6-Jan-26','30-Mar-26','2','Carson Pavia','Nic Velasco','Inbound','$1,000.00','Churned - Unhappy with Service, Communication or Creatives'],
+['National Park Mystery Series','Meta Ads Management','6-Jan-26','30-Mar-26','2','Jonathan Vinther','Nic Velasco','Inbound','$2,000.00','Churned - Unhappy with Service, Communication or Creatives'],
+['AI for CRE Collective','Meta Ads Management','21-Jan-26','30-Mar-26','2','Jacob Cummer','Nic Velasco','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['SimpleSUB Water','Meta Ads Management','15-Dec-25','30-Mar-26','3','Anthony Stuart','Nic Velasco','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Danielle Harris Studios','Meta Ads Management','7-Aug-25','27-Mar-26','7','Kyle Tuttle','Brennan Haelig','Referral','$1,500.00','Churned - Unhappy with Service, Communication or Creatives'],
+['Self Power Press','Meta Ads Management','9-Feb-26','26-Mar-26','1','Anthony Stuart','Brennan Haelig','Inbound','$500.00','Churned - Low ROAS or Lead Quality'],
+['Primedia','Google Ads Management','7-Aug-25','25-Mar-26','7','Max Trotter','Matt Evanoff','Upwork','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Gifts to Engrave','Meta Ads Management','30-Jun-25','24-Mar-26','8','Jonathan Vinther','Brandin Good','Upwork','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['Marwin Sports','Meta Ads Management','11-Aug-25','24-Mar-26','7','Jonathan Vinther','Nic Velasco','Referral','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Generational Wealth Advisors','Meta Ads Management','26-Feb-26','23-Mar-26','0','Jacob Cummer','Nic Velasco','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['National Recalls / NR Medical','Google Ads Management','19-Feb-26','18-Mar-26','0','Max Trotter','Matt Evanoff','Upwork','$1,500.00','Churned - Unhappy with Service, Communication or Creatives'],
+['Awards 4 U','Google Ads Management','28-Jan-26','18-Mar-26','1','JJ Crawford','Matt Evanoff','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Men\'s Wellness Centers','Bing Ads Management','14-Jan-26','17-Mar-26','2','Chris Erickson','Matt Evanoff','Upwork','$750.00','Churned - Low ROAS or Lead Quality'],
+['Blue Dove Coffee','Meta Ads Management','3-Dec-25','16-Mar-26','3','Jonathan Vinther','Nic Velasco','Upwork','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['The Potty Park','Meta Ads Management','13-Oct-25','16-Mar-26','5','Anthony Stuart','Nic Velasco','Referral','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['MigmaAI','Meta Ads Management','10-Sep-25','14-Mar-26','6','Anthony Stuart','Nic Velasco','Upwork','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Babu Bath','Meta Ads Management','12-Jan-26','12-Mar-26','2','Jonathan Vinther','Nic Velasco','Upwork','$1,500.00','Churned - Unhappy with Service, Communication or Creatives'],
+['C&G Tree Pros','Google Ads Management','12-Jan-26','12-Mar-26','2','JJ Crawford','Matt Evanoff','Upwork','$1,200.00','Churned - Low ROAS or Lead Quality'],
+['Golightly Cashmere','Google Ads Management','3-Jul-25','7-Mar-26','8','Carson Pavia','Nic Velasco','Upwork','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Modernyze','Google Ads Management','5-Jan-26','6-Mar-26','2','Carson Pavia','Nic Velasco','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Mint Law Firm','Google Ads Management','6-Jan-26','6-Mar-26','2','Carson Pavia','Matt Evanoff','Inbound','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Mint Law Firm','Bing Ads Management','6-Jan-26','6-Mar-26','2','Carson Pavia','Matt Evanoff','Inbound','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Home Front Design Build','Meta Ads Management','21-Jan-26','5-Mar-26','1','Jarrett M','Matt Evanoff','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Crimson Dawn Sabers','Meta Ads Management','6-Nov-25','5-Mar-26','3','Anthony Stuart','Nic Velasco','Upwork','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['DoorAdjust','Meta Ads Management','22-Jan-26','4-Mar-26','1','Jacob Cummer','Nic Velasco','Referral','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Daycare.com','Meta Ads Management','29-Dec-25','3-Mar-26','2','Kyle Tuttle','Nic Velasco','Upwork','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Sahou Lux Limousine','SEO','30-Dec-25','2-Mar-26','2','','Matt Evanoff','Upwork','$400.00','Churned - Unhappy with Service, Communication or Creatives'],
+['West Side Tattoo','Meta Ads Management','15-Jan-26','2-Mar-26','1','Anthony Stuart','Brandin Good','Upwork','$750.00','Churned - Low ROAS or Lead Quality'],
+['West Side Tattoo','Google Ads Management','15-Jan-26','2-Mar-26','1','Carson Pavia','Brandin Good','Upwork','$750.00','Churned - Low ROAS or Lead Quality'],
+['Dreams in Colour Photography','Meta Ads Management','26-Nov-25','28-Feb-26','3','Kyle Tuttle','Nic Velasco','Referral','$1,500.00','Churned - Poor Funnel Conversion / Sales Process'],
+['Cows Go Moo!','Meta Ads Management','28-Nov-25','28-Feb-26','3','Anthony Stuart','Nic Velasco','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Primedia','Bing Ads Management','26-Oct-25','24-Feb-26','3','Max Trotter','Matt Evanoff','Inbound','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Inner Solutions','Meta Ads Management','22-Oct-25','22-Feb-26','4','Anthony Stuart','Nic Velasco','Upwork','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Ramadan Nest','Meta Ads Management','13-Jan-26','21-Feb-26','1','Anthony Stuart','Brandin Good','Inbound','$900.00','Churned - Low ROAS or Lead Quality'],
+['Designer Bags Direct','Meta Ads Management','24-Sep-25','20-Feb-26','4','Jonathan Vinther','Nic Velasco','Upwork','$2,500.00','Churned - Internal Change or Temporary Pause'],
+['Project Food Box','Google Ads Management','18-Jun-25','20-Feb-26','8','Carson Pavia','Brandin Good','Inbound','$4,000.00','Churned - Internal Change or Temporary Pause'],
+['Robyn Barkley Photography','Meta Ads Management','14-Jan-26','14-Feb-26','1','Kyle Tuttle','Nic Velasco','Referral','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Origin & Story','Meta Ads Management','16-Dec-25','4-Feb-26','1','Jonathan Vinther','Matt Evanoff','Upwork','$1,500.00','Churned - Unhappy with Service, Communication or Creatives'],
+['Sweet Home Management','Google Ads Management','2-Dec-25','2-Feb-26','2','Carson Pavia','Matt Evanoff','Referral','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Illuminate Digital','Google Ads Management','7-Nov-25','31-Jan-26','2','JJ Crawford','Matt Evanoff','Referral','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Sahou Lux Limousine','Google Ads Management','1-Oct-25','30-Jan-26','3','Carson Pavia','Matt Evanoff','Upwork','$1,200.00','Churned - Low ROAS or Lead Quality'],
+['Foundation','Meta Ads Management','10-Dec-25','26-Jan-26','1','Kyle Tuttle','Matt Evanoff','Referral','$2,000.00','Churned - Internal Change or Temporary Pause'],
+['MidSchoolMath','Google Ads Management','20-Oct-25','26-Jan-26','3','JJ Crawford','Matt Evanoff','Referral','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Lemon Lumba','Google Ads Management','2-Jul-25','19-Jan-26','6','Carson Pavia','Matt Evanoff','Upwork','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Honey Cloudz','Meta Ads Management','25-Apr-25','19-Jan-26','8','Jonathan Vinther','Brandin Good','Referral','$2,000.00','Churned - Internal Change or Temporary Pause'],
+['ReturnPro','LinkedIn Ads Management','24-Nov-25','17-Jan-26','1','Chris Erickson','Matt Evanoff','Inbound','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Direct Liquidation','Google Ads Management','1-Aug-25','17-Jan-26','5','Chris Erickson','Matt Evanoff','Referral','$2,000.00','Churned - Internal Change or Temporary Pause'],
+['Global Wholesale','Google Ads Management','1-Aug-25','17-Jan-26','5','Chris Erickson','Matt Evanoff','Referral','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Direct Liquidation','Meta Ads Management','1-Aug-25','17-Jan-26','5','Anthony Stuart','Matt Evanoff','Referral','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Global Wholesale','Meta Ads Management','1-Aug-25','17-Jan-26','5','Anthony Stuart','Matt Evanoff','Referral','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['ReturnPro','Google Ads Management','23-Jun-25','17-Jan-26','6','Chris Erickson','Matt Evanoff','Referral','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Venture Martial Arts','Meta Ads Management','17-Dec-25','17-Jan-26','1','Kyle Tuttle','Nic Velasco','Upwork','$1,500.00','Churned - Bad Fit'],
+['Cartelligent','Google Ads Management','17-Oct-24','16-Jan-26','14','Carson Pavia','Brennan Haelig','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['All About Therapy','Meta Ads Management','23-Nov-25','16-Jan-26','1','Anthony Stuart','Nic Velasco','Upwork','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Apex Chiropractic Coaching','Meta Ads Management','29-Jul-25','16-Jan-26','5','Jonathan Vinther','Brennan Haelig','Inbound','$500.00','Churned - Internal Change or Temporary Pause'],
+['Gondola Resorts','Google Ads Management','23-Jun-25','16-Jan-26','6','Chris Erickson','Brandin Good','Upwork','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['IAB Academy','Meta Ads Management','7-Nov-25','15-Jan-26','2','Anthony Stuart','Brennan Haelig','Inbound','$1,000.00','Churned - Poor Funnel Conversion / Sales Process'],
+['MemberSpace','Meta Ads Management','15-Sep-25','15-Jan-26','4','Kyle Tuttle','Matt Evanoff','Inbound','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['MOLO','Meta Ads Management','30-Sep-25','13-Jan-26','3','Jonathan Vinther','Nic Velasco','Referral','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Auto Value Professionals','Meta Ads Management','2-Jan-26','12-Jan-26','0','Anthony Stuart','Nic Velasco','Upwork','$2,000.00','Churned - Bad Fit'],
+['Remodel Chief','Google Ads Management','9-Dec-25','9-Jan-26','1','JJ Crawford','Matt Evanoff','Referral','$1,500.00','Churned - Bad Fit'],
+['AvaHR','Meta Ads Management','31-Oct-25','6-Jan-26','2','Anthony Stuart','Matt Evanoff','Upwork','$1,500.00','Churned - Bad Fit'],
+['KUT Football','Google Ads Management','1-Oct-25','1-Jan-26','3','Carson Pavia','Brennan Haelig','Inbound','$1,250.00','Churned - Internal Change or Temporary Pause'],
+['KUT Football','Meta Ads Management','9-May-25','1-Jan-26','7','Jonathan Vinther','Brennan Haelig','Referral','$2,500.00','Churned - Internal Change or Temporary Pause'],
+['Godfrey & Company','Meta Ads Management','19-Jun-25','30-Dec-25','6','Anthony Stuart','Brandin Good','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Endpoint Automation Systems','Meta Ads Management','25-Sep-25','29-Dec-25','3','Kyle Tuttle','Matt Evanoff','Upwork','$1,167.00','Churned - Unhappy with Service, Communication or Creatives'],
+['Endpoint Automation Systems','Google Ads Management','25-Sep-25','29-Dec-25','3','JJ Crawford','Matt Evanoff','Upwork','$1,167.00','Churned - Unhappy with Service, Communication or Creatives'],
+['Endpoint Automation Systems','LinkedIn Ads Management','25-Sep-25','29-Dec-25','3','Kyle Tuttle','Matt Evanoff','Upwork','$1,167.00','Churned - Unhappy with Service, Communication or Creatives'],
+['EY Behavioral Services','Meta Ads Management','24-Sep-25','29-Dec-25','3','Anthony Stuart','Nic Velasco','Upwork','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['9Five','Meta Ads Management','29-Jul-25','29-Dec-25','5','Jonathan Vinther','Brennan Haelig','Upwork','$1,250.00','Churned - Internal Change or Temporary Pause'],
+['9Five','Google Ads Management','29-Jul-25','29-Dec-25','5','Carson Pavia','Brennan Haelig','Upwork','$1,250.00','Churned - Internal Change or Temporary Pause'],
+['Ajjaya','Meta Ads Management','21-Oct-25','27-Dec-25','2','Jonathan Vinther','Nic Velasco','Referral','$1,500.00','Churned - Unhappy with Service, Communication or Creatives'],
+['Self Power Rules','Meta Ads Management','15-Jul-25','25-Dec-25','5','Anthony Stuart','Brennan Haelig','Upwork','$500.00','Churned - Poor Funnel Conversion / Sales Process'],
+['Boob Protect','Meta Ads Management','24-Sep-25','25-Dec-25','3','Jonathan Vinther','Nic Velasco','Referral','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Michael Felice Interiors','Google Ads Management','26-Aug-25','20-Dec-25','3','Max Trotter','Matt Evanoff','Referral','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['Mr. Sancho Pancho Tequila','Google Ads Management','1-Dec-25','19-Dec-25','0','Anthony Stuart','Matt Evanoff','Referral','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Aim AI','Meta Ads Management','4-Aug-25','16-Dec-25','4','Kyle Tuttle','Brennan Haelig','Upwork','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Portrait Club','Meta Ads Management','19-Sep-25','15-Dec-25','2','Kyle Tuttle','Brennan Haelig','Referral','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Dust & Breath','Meta Ads Management','24-Aug-25','1-Dec-25','3','Kyle Tuttle','Nic Velasco','Referral','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Thomas and Birch','Google Ads Management','13-Aug-25','28-Nov-25','3','Max Trotter','Brennan Haelig','Referral','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['EURAE','Google Ads Management','23-Oct-25','26-Nov-25','1','JJ Crawford','Matt Evanoff','Upwork','$1,200.00','Churned - Low ROAS or Lead Quality'],
+['Mary Maxim','Meta Ads Management','17-Jul-25','26-Nov-25','4','Jonathan Vinther','Brennan Haelig','Inbound','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Mary Maxim','Google Ads Management','8-May-24','26-Nov-25','18','Carson Pavia','Nic Velasco','Upwork','$3,500.00','Churned - Internal Change or Temporary Pause'],
+['Mary Maxim','Meta Ads Management','8-May-24','26-Nov-25','18','Jonathan Vinther','Nic Velasco','Upwork','$1,750.00','Churned - Internal Change or Temporary Pause'],
+['Horeca NYC','Google Ads Management','27-Oct-25','25-Nov-25','0','JJ Crawford','Matt Evanoff','Inbound','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['Golightly Cashmere','Meta Ads Management','1-Oct-25','25-Nov-25','1','','Nic Velasco','Upwork','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Adam Thibert Photography','Meta Ads Management','17-Jul-25','16-Nov-25','3','Kyle Tuttle','Brennan Haelig','Referral','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Novakind Health','Google Ads Management','6-Oct-25','15-Nov-25','1','JJ Crawford','Matt Evanoff','Upwork','$1,200.00','Churned - Low ROAS or Lead Quality'],
+['Global Hunting Solutions','Meta Ads Management','29-Sep-25','15-Nov-25','1','Anthony Stuart','Brennan Haelig','Inbound','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['Aim AI','Google Ads Management','13-Aug-25','15-Nov-25','3','Max Trotter','Brennan Haelig','Upwork','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['John Glaser Photography','Meta Ads Management','21-Apr-25','15-Nov-25','6','Kyle Tuttle','Brennan Haelig','Referral','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Beyond Pets','Google Ads Management','14-Aug-25','9-Nov-25','2','Carson Pavia','Nic Velasco','Upwork','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Kaizen Mind Lab','Meta Ads Management','7-Jul-25','6-Nov-25','3','Anthony Stuart','Brennan Haelig','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Karpathios Group','Meta Ads Management','29-Oct-25','6-Nov-25','0','Anthony Stuart','Matt Evanoff','Upwork','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Creative Focus Studios','Meta Ads Management','30-Jul-25','31-Oct-25','3','Kyle Tuttle','Brennan Haelig','Referral','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['TKDeals','Meta Ads Management','24-Jun-25','29-Oct-25','4','Jonathan Vinther','Brennan Haelig','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['SCF Flooring','Google Ads Management','28-Apr-25','29-Oct-25','6','Carson Pavia','Brandin Good','Inbound','$500.00','Churned - Internal Change or Temporary Pause'],
+['SCF Flooring','SEO','28-Apr-25','29-Oct-25','6','','Brandin Good','Inbound','$400.00','Churned - Internal Change or Temporary Pause'],
+['Net Travel','Meta Ads Management','1-Mar-24','29-Oct-25','19','Kyle Tuttle','Brandin Good','Upwork','$1,600.00','Churned - Internal Change or Temporary Pause'],
+['BODDI','Meta Ads Management','27-Sep-25','25-Oct-25','0','Jonathan Vinther','Nic Velasco','Upwork','$1,000.00','Churned - Unhappy with Service, Communication or Creatives'],
+['Elly Dubai','Meta Ads Management','26-Sep-25','23-Oct-25','0','Jonathan Vinther','Nic Velasco','Upwork','$1,200.00','Churned - Low ROAS or Lead Quality'],
+['James White Photography','Meta Ads Management','4-Sep-25','20-Oct-25','1','Kyle Tuttle','Brennan Haelig','Referral','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['LineLeader','Meta Ads Management','27-May-25','17-Oct-25','4','Kyle Tuttle','Matt Evanoff','Inbound','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['LineLeader','Google Ads Management','28-Mar-25','17-Oct-25','6','Chris Erickson','Matt Evanoff','Inbound','$1,250.00','Churned - Low ROAS or Lead Quality'],
+['MAP Consulting','LinkedIn Ads Management','26-Mar-25','13-Oct-25','6','Chris Erickson','Matt Evanoff','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Eden Health Clubs','Google Ads Management','26-Aug-25','8-Oct-25','1','Carson Pavia','Nic Velasco','Upwork','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['Eden Health Clubs','Meta Ads Management','26-Aug-25','8-Oct-25','1','Kyle Tuttle','Nic Velasco','Upwork','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['Online CE Credits','Google Ads Management','1-Sep-25','30-Sep-25','0','Carson Pavia','Brennan Haelig','Inbound','$1,125.00','Churned - Low ROAS or Lead Quality'],
+['IAB Academy','Meta Ads Management','31-Jul-25','30-Sep-25','1','Anthony Stuart','Brennan Haelig','Inbound','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['The Celiac Space','Meta Ads Management','1-Jun-25','30-Sep-25','3','Kyle Tuttle','Nic Velasco','Upwork','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Mountain Spine','Google Ads Management','2-May-25','30-Sep-25','4','Carson Pavia','Brennan Haelig','Upwork','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['LineLeader','LinkedIn Ads Management','28-Mar-25','30-Sep-25','6','Chris Erickson','Matt Evanoff','Inbound','$1,250.00','Churned - Internal Change or Temporary Pause'],
+['Juicy Lie Golf','Google Ads Management','28-Aug-25','29-Sep-25','1','Max Trotter','Nic Velasco','Upwork','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['Juicy Lie Golf','Meta Ads Management','28-Aug-25','29-Sep-25','1','Jonathan Vinther','Nic Velasco','Upwork','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['Splash of Color Co.','Meta Ads Management','21-Aug-25','27-Sep-25','1','Anthony Stuart','Nic Velasco','Upwork','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['InstaHear','Google Ads Management','4-Aug-25','24-Sep-25','1','Max Trotter','Brennan Haelig','Upwork','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['Barn Tools','Snap Ads Management','2-Jul-25','23-Sep-25','2','Jonathan Vinther','Brennan Haelig','Inbound','$1,000.00','Churned - Unhappy with Service, Communication or Creatives'],
+['Barn Tools','Meta Ads Management','7-Feb-25','23-Sep-25','7','Jonathan Vinther','Brennan Haelig','Upwork','$2,000.00','Churned - Unhappy with Service, Communication or Creatives'],
+['Capacity Garage & Closet','SEO','9-Jun-25','22-Sep-25','3','','Brandin Good','Inbound','$400.00','Churned - Low ROAS or Lead Quality'],
+['Capacity Garage & Closet','Meta Ads Management','1-Aug-25','19-Sep-25','1','Kyle Tuttle','Nic Velasco','Inbound','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['Warrior Playground','Meta Ads Management','30-Apr-25','19-Sep-25','4','Kyle Tuttle','Brandin Good','Upwork','$750.00','Churned - Low ROAS or Lead Quality'],
+['Warrior Playground','Google Ads Management','30-Apr-25','19-Sep-25','4','Carson Pavia','Brandin Good','Upwork','$750.00','Churned - Low ROAS or Lead Quality'],
+['Le Parlour NYC','Meta Ads Management','26-Jun-25','18-Sep-25','2','Kyle Tuttle','Brandin Good','Upwork','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['Peak Neuropsychology','Google Ads Management','21-May-25','15-Sep-25','3','Carson Pavia','Brandin Good','Upwork','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['Menscrafted','Meta Ads Management','14-Jul-25','11-Sep-25','1','Jonathan Vinther','Brennan Haelig','Upwork','$2,000.00','Churned - Low ROAS or Lead Quality'],
+['Texas Land Tours','Meta Ads Management','10-Jul-25','11-Sep-25','2','Anthony Stuart','Brandin Good','Upwork','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['Sing Factory','Google Ads Management','15-Aug-25','9-Sep-25','0','Carson Pavia','Matt Evanoff','Upwork','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['WISK','Meta Ads Management','4-Oct-24','8-Sep-25','11','Kyle Tuttle','Brennan Haelig','Upwork','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Birdie Retriever','Google Ads Management','14-Aug-25','7-Sep-25','0','Carson Pavia','Nic Velasco','Upwork','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Birdie Retriever','Meta Ads Management','14-Aug-25','7-Sep-25','0','Jonathan Vinther','Nic Velasco','Upwork','$2,000.00','Churned - Internal Change or Temporary Pause'],
+['Aesthetic Collectives','Meta Ads Management','29-May-25','5-Sep-25','3','Jonathan Vinther','Brandin Good','Referral','$750.00','Churned - Low ROAS or Lead Quality'],
+['National Park Mystery Series','Meta Ads Management','23-Jun-25','5-Sep-25','2','Jonathan Vinther','Brennan Haelig','Upwork','$2,000.00','Churned - Internal Change or Temporary Pause'],
+['Norwest Cosmetic Surgery','Meta Ads Management','22-May-25','4-Sep-25','3','Kyle Tuttle','Brandin Good','Inbound','$400.00','Churned - Low ROAS or Lead Quality'],
+['Aesthetic Collectives','Google Ads Management','1-Aug-25','3-Sep-25','1','Max Trotter','Brandin Good','Referral','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['Insights Dental Marketing','Meta Ads Management','18-Aug-25','3-Sep-25','0','Anthony Stuart','Nic Velasco','Upwork','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Imperial Interiors','Google Ads Management','10-Jul-25','1-Sep-25','1','Anthony Stuart','Matt Evanoff','Referral','$700.00','Churned - Low ROAS or Lead Quality'],
+['KOMA Taekwondo','Google Ads Management','1-Aug-25','1-Sep-25','1','Carson Pavia','Brandin Good','Inbound','$700.00','Churned - Internal Change or Temporary Pause'],
+['KOMA Taekwondo','SEO','15-May-25','1-Sep-25','3','','Brandin Good','Inbound','$400.00','Churned - Internal Change or Temporary Pause'],
+['KOMA Taekwondo','Meta Ads Management','29-Oct-24','1-Sep-25','10','Kyle Tuttle','Brandin Good','Upwork','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Online CE Credits','Meta Ads Management','26-Jun-25','30-Aug-25','2','Kyle Tuttle','Brennan Haelig','Upwork','$2,000.00','Churned - Internal Change or Temporary Pause'],
+['Dave Richardson','Google Ads Management','2-Jul-25','27-Aug-25','1','Carson Pavia','Brandin Good','Upwork','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['Flame Quest Candles','Meta Ads Management','25-Jun-25','25-Aug-25','2','Anthony Stuart','Brennan Haelig','Upwork','$750.00','Churned - Internal Change or Temporary Pause'],
+['Texas CIC','Meta Ads Management','23-Jun-25','22-Aug-25','1','Kyle Tuttle','Brennan Haelig','Inbound','$750.00','Churned - Internal Change or Temporary Pause'],
+['Texas CIC','LinkedIn Ads Management','23-Jun-25','22-Aug-25','1','Kyle Tuttle','Brandin Good','Inbound','$750.00','Churned - Internal Change or Temporary Pause'],
+['Norwest Cosmetic Surgery','Google Ads Management','7-Oct-24','22-Aug-25','10','Carson Pavia','Brennan Haelig','Upwork','$658.00','Churned - Internal Change or Temporary Pause'],
+['Elevate Photography Consulting','Meta Ads Management','7-Aug-25','21-Aug-25','0','Kyle Tuttle','Brennan Haelig','Inbound','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Party on Butler','Google Ads Management','17-May-25','21-Aug-25','3','Carson Pavia','Brandin Good','Upwork','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Glass House','Google Ads Management','15-Jul-25','20-Aug-25','1','Carson Pavia','Brennan Haelig','Upwork','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['Elevate Real Estate','Google Ads Management','16-Apr-25','20-Aug-25','4','Carson Pavia','Brandin Good','Upwork','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['OCD Unlocked','Meta Ads Management','30-Jun-25','19-Aug-25','1','Kyle Tuttle','Brennan Haelig','Upwork','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Dike Law Group','Google Ads Management','14-Mar-24','15-Aug-25','17','Carson Pavia','Brandin Good','Upwork','$1,500.00','Churned - Unhappy with Service, Communication or Creatives'],
+['Mobile Trainers','Meta Ads Management','23-Oct-24','6-Aug-25','9','Kyle Tuttle','Brennan Haelig','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Fidelis Wealth Builders','Meta Ads Management','4-Apr-25','31-Jul-25','3','Kyle Tuttle','Brennan Haelig','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Your Pura Vida','Google Ads Management','12-May-25','29-Jul-25','2','Carson Pavia','Brennan Haelig','Upwork','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['Your Pura Vida','Meta Ads Management','12-May-25','29-Jul-25','2','Kyle Tuttle','Brennan Haelig','Upwork','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['Diversifilife Financial','Meta Ads Management','21-Apr-25','23-Jul-25','3','Kyle Tuttle','Brandin Good','Upwork','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['The Painting Company','Google Ads Management','1-Jul-25','22-Jul-25','0','Carson Pavia','Brandin Good','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Solzorro','Google Ads Management','13-Mar-25','22-Jul-25','4','Carson Pavia','Brandin Good','Upwork','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['WhiskerHaus','Meta Ads Management','19-Feb-25','15-Jul-25','4','Jonathan Vinther','Brandin Good','Referral','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['Medicare Hero','Bing Ads Management','17-Apr-25','10-Jul-25','2','Chris Erickson','Brandin Good','Inbound','$750.00','Churned - Low ROAS or Lead Quality'],
+['Dike Law','SEO','9-May-25','9-Jul-25','2','','Brandin Good','Inbound','$400.00','Churned - Internal Change or Temporary Pause'],
+['Golden Door','Meta Ads Management','30-Apr-25','3-Jul-25','2','Kyle Tuttle','Brandin Good','Inbound','$700.00','Churned - Low ROAS or Lead Quality'],
+['Norwest Cosmetic Surgery','SEO','22-May-25','1-Jul-25','1','','Brandin Good','Inbound','$250.00','Churned - Unhappy with Service, Communication or Creatives'],
+['Dike Law Group','Bing Ads Management','16-Jan-25','30-Jun-25','5','Carson Pavia','Brandin Good','Inbound','$750.00','Churned - Low ROAS or Lead Quality'],
+['22 Plastic Surgery','Google Ads Management','24-Oct-24','30-Jun-25','8','Carson Pavia','Brennan Haelig','Upwork','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Capacity Garage & Closet','Meta Ads Management','22-May-25','26-Jun-25','1','Kyle Tuttle','Brandin Good','Inbound','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['USAgain','Google Ads Management','13-May-25','24-Jun-25','1','Carson Pavia','Brennan Haelig','Upwork','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['RISE Modern Wellness','Meta Ads Management','21-Mar-25','18-Jun-25','2','Kyle Tuttle','Brennan Haelig','Upwork','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Good Vibes App','Meta Ads Management','26-Feb-25','17-Jun-25','3','Kyle Tuttle','Brandin Good','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['2ONE','Google Ads Management','20-Mar-25','16-Jun-25','2','Carson Pavia','Brennan Haelig','Upwork','$4,100.00','Churned - Unhappy with Service, Communication or Creatives'],
+['Better Bible Teachers','Google Ads Management','2-May-25','16-Jun-25','1','Carson Pavia','Brandin Good','Upwork','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Capacity Garage & Closet','Google Ads Management','15-Apr-25','9-Jun-25','1','Carson Pavia','Brandin Good','Upwork','$300.00','Churned - Low ROAS or Lead Quality'],
+['Cartelligent','Bing Ads Management','13-Jan-25','6-Jun-25','4','Carson Pavia','Brennan Haelig','Inbound','$750.00','Churned - Internal Change or Temporary Pause'],
+['Liquid Caffeine','Meta Ads Management','26-Mar-25','29-May-25','2','Jonathan Vinther','Brandin Good','Referral','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Headspace Coffee','Meta Ads Management','4-Mar-25','28-May-25','2','Jonathan Vinther','Brandin Good','Referral','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['Apex Chiro Coaching','Meta Ads Management','9-Feb-24','27-May-25','15','Jonathan Vinther','Brandin Good','Upwork','$500.00','Churned - Internal Change or Temporary Pause'],
+['Small Businesss Expo','LinkedIn Ads Management','23-Jan-25','26-May-25','4','Kyle Tuttle','Brandin Good','Inbound','$500.00','Churned - Internal Change or Temporary Pause'],
+['SURF','Meta Ads Management','17-Mar-25','22-May-25','2','Kyle Tuttle','Brennan Haelig','Inbound','$750.00','Churned - Poor Funnel Conversion / Sales Process'],
+['SURF','Google Ads Management','17-Mar-25','22-May-25','2','Carson Pavia','Brennan Haelig','Inbound','$750.00','Churned - Poor Funnel Conversion / Sales Process'],
+['Mary Maxim','Bing Ads Management','17-Feb-25','22-May-25','3','Carson Pavia','Brennan Haelig','Inbound','$750.00','Churned - Low ROAS or Lead Quality'],
+['Berqus','Google Ads Management','7-May-25','22-May-25','0','Carson Pavia','Brandin Good','Referral','$700.00','Churned - Internal Change or Temporary Pause'],
+['Mint Law Firm','Google Ads Management','17-Mar-25','22-May-25','2','Carson Pavia','Brandin Good','Upwork','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Milvidskiy Law Group','Meta Ads Management','15-Aug-24','19-May-25','9','Kyle Tuttle','Brandin Good','Upwork','$1,000.00','Churned - Unhappy with Service, Communication or Creatives'],
+['Milvidskiy Law Group','Google Ads Management','6-Nov-23','19-May-25','18','Chris Erickson','Brandin Good','Upwork','$1,950.00','Churned - Unhappy with Service, Communication or Creatives'],
+['Mona\'s Auto Insurance','Meta Ads Management','25-Oct-24','14-May-25','6','Jonathan Vinther','Brandin Good','Upwork','$700.00','Churned - Poor Funnel Conversion / Sales Process'],
+['Health Sphere','Google Ads Management','7-Mar-25','12-May-25','2','Carson Pavia','Brandin Good','Upwork','$800.00','Churned - Low ROAS or Lead Quality'],
+['FabRX Studio','Meta Ads Management','7-Mar-25','12-May-25','2','Jonathan Vinther','Brandin Good','Referral','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['FabRX Studio','Google Ads Management','7-Mar-25','12-May-25','2','Carson Pavia','Brandin Good','Referral','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['Polyzos Painting','Meta Ads Management','30-Jan-25','10-May-25','3','Graeme Edment','Brandin Good','Upwork','$750.00','Churned - Low ROAS or Lead Quality'],
+['Vitality Cycles','Meta Ads Management','25-Apr-25','9-May-25','0','Jonathan Vinther','Brandin Good','Inbound','$1,000.00','Churned - Unhappy with Service, Communication or Creatives'],
+['Vitality Cycles','Google Ads Management','15-Aug-24','9-May-25','8','Carson Pavia','Brandin Good','Upwork','$1,000.00','Churned - Unhappy with Service, Communication or Creatives'],
+['CEO Life','Meta Ads Management','8-Jan-25','1-May-25','3','Kyle Tuttle','Brandin Good','Inbound','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Mustang Week','Meta Ads Management','15-Jan-25','1-May-25','3','Kyle Tuttle','Brennan Haelig','Upwork','$750.00','Churned - Internal Change or Temporary Pause'],
+['Mustang Week','Google Ads Management','15-Jan-25','1-May-25','3','Carson Pavia','Brennan Haelig','Upwork','$750.00','Churned - Internal Change or Temporary Pause'],
+['HealthdeskAI','Google Ads Management','15-Jan-25','30-Apr-25','3','Carson Pavia','Brennan Haelig','Upwork','$400.00','Churned - Poor Funnel Conversion / Sales Process'],
+['HealthdeskAI','Meta Ads Management','3-Dec-24','30-Apr-25','4','Kyle Tuttle','Brennan Haelig','Upwork','$3,600.00','Churned - Poor Funnel Conversion / Sales Process'],
+['Network N Security','Google Ads Management','17-Feb-25','30-Apr-25','2','Carson Pavia','Brandin Good','Referral','$700.00','Churned - Low ROAS or Lead Quality'],
+['Metpure','Google Ads Management','30-Aug-24','30-Apr-25','8','Carson Pavia','Brennan Haelig','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Arielle Executive','LinkedIn Ads Management','27-Mar-25','30-Apr-25','1','Kyle Tuttle','Brennan Haelig','Inbound','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Travorio','Meta Ads Management','9-Apr-25','28-Apr-25','0','Kyle Tuttle','Brandin Good','Inbound','$750.00','Churned - Unhappy with Service, Communication or Creatives'],
+['Upspire','Meta Ads Management','27-Mar-25','28-Apr-25','1','Graeme Edment','Brandin Good','Inbound','$1,000.00','Churned - Poor Funnel Conversion / Sales Process'],
+['BBTRI Google','Google Ads Management','19-Feb-25','18-Apr-25','1','Carson Pavia','Brandin Good','Referral','$1,250.00','Churned - Low ROAS or Lead Quality'],
+['BBTRI Meta','Meta Ads Management','19-Feb-25','18-Apr-25','1','Kyle Tuttle','Brandin Good','Referral','$1,250.00','Churned - Low ROAS or Lead Quality'],
+['Norwest Cosmetic Surgery','Meta Ads Management','12-Aug-24','18-Apr-25','8','Kyle Tuttle','Brennan Haelig','Upwork','$658.00','Churned - Low ROAS or Lead Quality'],
+['Travorio','Google Ads Management','9-Apr-25','17-Apr-25','0','Carson Pavia','Brandin Good','Inbound','$750.00','Churned - Unhappy with Service, Communication or Creatives'],
+['Leon Levin','Google Ads Management','11-Jul-24','17-Apr-25','9','Carson Pavia','Brandin Good','Inbound','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['BBTRI SEO','SEO','19-Feb-25','15-Apr-25','1','','Brandin Good','Referral','$750.00','Churned - Low ROAS or Lead Quality'],
+['Lorenc','Google Ads Management','27-Sep-24','9-Apr-25','6','Carson Pavia','Brandin Good','Upwork','$1,500.00','Churned - Poor Funnel Conversion / Sales Process'],
+['Wellmade','Meta Ads Management','20-Feb-25','4-Apr-25','1','Kyle Tuttle','Brandin Good','Upwork','$1,500.00','Churned - Unhappy with Service, Communication or Creatives'],
+['Tellos ABA','Google Ads Management','16-Jan-25','3-Apr-25','2','Carson Pavia','Brandin Good','Upwork','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['Untapped Potential','Meta Ads Management','17-Sep-24','1-Apr-25','6','Kyle Tuttle','Brennan Haelig','Inbound','$1,500.00','Churned - Poor Funnel Conversion / Sales Process'],
+['Sieveking Plastic Surgery','Google Ads Management','7-Jan-25','1-Apr-25','2','Carson Pavia','Brandin Good','Upwork','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Sieveking Plastic Surgery','Meta Ads Management','7-Jan-25','1-Apr-25','2','Graeme Edment','Brandin Good','Upwork','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Beyond Fitness','Meta Ads Management','30-Jan-25','30-Mar-25','2','Kyle Tuttle','Brandin Good','Upwork','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Catipult','LinkedIn Ads Management','26-Jan-25','27-Mar-25','2','Chris Erickson','Brennan Haelig','Inbound','$1,500.00','Churned - Poor Funnel Conversion / Sales Process'],
+['Palm Bee','Google Ads Management','20-Jan-25','26-Mar-25','2','Carson Pavia','Brandin Good','Referral','$1,250.00','Churned - Low ROAS or Lead Quality'],
+['Palm Bee','Meta Ads Management','20-Jan-25','26-Mar-25','2','Jonathan Vinther','Brandin Good','Referral','$1,250.00','Churned - Low ROAS or Lead Quality'],
+['Yoga Trapeze','Meta Ads Management','13-Nov-24','24-Mar-25','4','Jonathan Vinther','Brennan Haelig','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Print FX','Meta Ads Management','20-Sep-24','20-Mar-25','6','Kyle Tuttle','Brennan Haelig','Referral','$1,500.00','Churned - Poor Funnel Conversion / Sales Process'],
+['Waggle Golf','Bing Ads Management','11-Jun-24','13-Mar-25','9','Carson Pavia','Brennan Haelig','Inbound','$750.00','Churned - Low ROAS or Lead Quality'],
+['BuildX','Google Ads Management','21-Nov-24','12-Mar-25','3','Carson Pavia','Brandin Good','Upwork','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['Gear Infusion','Meta Ads Management','13-Jan-25','12-Mar-25','1','Jonathan Vinther','Brandin Good','Upwork','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Gear Infusion','Google Ads Management','13-Jan-25','12-Mar-25','1','Carson Pavia','Brandin Good','Upwork','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['BuildX','Meta Ads Management','21-Nov-24','12-Mar-25','3','Kyle Tuttle','Brandin Good','Upwork','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Flip Coffee','Google Ads Management','12-Nov-24','1-Mar-25','3','Carson Pavia','Brandin Good','Inbound','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Primeline Health','Meta Ads Management','15-Oct-24','28-Feb-25','4','Kyle Tuttle','Brennan Haelig','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Waggle Golf','TikTok Ads Management','11-Jun-24','28-Feb-25','8','Jonathan Vinther','Brennan Haelig','Inbound','$750.00','Churned - Low ROAS or Lead Quality'],
+['Aristotle Performance','Google Ads Management','14-Mar-24','28-Feb-25','11','Chris Erickson','Brennan Haelig','Email','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['MemberSpace','Meta Ads Management','9-Dec-24','26-Feb-25','2','Kyle Tuttle','Brennan Haelig','Upwork','$1,000.00','Churned - Poor Funnel Conversion / Sales Process'],
+['Rapid Wristbands','Google Ads Management','26-Nov-24','25-Feb-25','2','Carson Pavia','Brennan Haelig','Referral','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['HitFit Apopka','Meta Ads Management','20-Dec-24','22-Feb-25','2','Kyle Tuttle','Brandin Good','Upwork','$800.00','Churned - Internal Change or Temporary Pause'],
+['Justis Connection','Meta Ads Management','21-Oct-24','20-Feb-25','3','Kyle Tuttle','Brennan Haelig','Upwork','$1,200.00','Churned - Low ROAS or Lead Quality'],
+['IAB Advisors','Meta Ads Management','25-Nov-24','15-Feb-25','2','Graeme Edment','Brennan Haelig','Referral','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Bantr','Google Ads Management','1-Oct-24','12-Feb-25','4','Carson Pavia','Brandin Good','Referral','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Bhatt Law Group','Meta Ads Management','16-Jan-25','11-Feb-25','0','Kyle Tuttle','Brandin Good','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Deep Zeez','Meta Ads Management','20-Dec-24','7-Feb-25','1','Jonathan Vinther','Brennan Haelig','Upwork','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Pitch Us','Meta Ads Management','1-Sep-24','31-Jan-25','4','Jonathan Vinther','Brennan Haelig','Upwork','$2,500.00','Churned - Unhappy with Service, Communication or Creatives'],
+['Tango','Meta Ads Management','8-Mar-24','30-Jan-25','10','Kyle Tuttle','Brandin Good','Upwork','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Cartelligent Meta','Meta Ads Management','26-Nov-24','28-Jan-25','2','Kyle Tuttle','Brennan Haelig','Inbound','$1,000.00','Churned - Low ROAS or Lead Quality'],
+['Pencil Media GPG','Meta Ads Management','9-Dec-24','27-Jan-25','1','Graeme Edment','Brandin Good','Inbound','$700.00','Churned - Low ROAS or Lead Quality'],
+['Wild Era','Meta Ads Management','21-Nov-24','23-Jan-25','2','Jonathan Vinther','Brandin Good','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Leon Levin','Meta Ads Management','14-Nov-24','23-Jan-25','2','Jonathan Vinther','Brennan Haelig','Inbound','$500.00','Churned - Low ROAS or Lead Quality'],
+['Function Better','Meta Ads Management','22-Nov-24','23-Jan-25','2','Graeme Edment','Brennan Haelig','Upwork','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Apollos Sports Rehab','Meta Ads Management','11-Dec-24','16-Jan-25','1','Graeme Edment','Brennan Haelig','Referral','$1,000.00','Churned - Poor Funnel Conversion / Sales Process'],
+['Greenback Capital','LinkedIn Ads Management','8-Nov-24','16-Jan-25','2','Kyle Tuttle','Brennan Haelig','Upwork','$1,500.00','Churned - Low ROAS or Lead Quality'],
+['Patriot Crew','Meta Ads Management','20-May-24','16-Jan-25','7','Jonathan Vinther','Brennan Haelig','Upwork','$7,000.00','Churned - Internal Change or Temporary Pause'],
+['Alyse Breathes','Meta Ads Management','12-Nov-24','13-Jan-25','2','Graeme Edment','Brennan Haelig','Upwork','$1,000.00','Churned - Poor Funnel Conversion / Sales Process'],
+['iFLY Luggage','Meta Ads Management','1-Dec-23','7-Jan-25','13','Jonathan Vinther','Brennan Haelig','Referral','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['iFLY Luggage','Google Ads Management','1-Dec-23','7-Jan-25','13','Carson Pavia','Brennan Haelig','Referral','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Lemon & Lace','Meta Ads Management','1-Oct-24','1-Jan-25','3','Jonathan Vinther','Brennan Haelig','Inbound','$1,000.00','Churned - Internal Change or Temporary Pause'],
+['Ceres Chill','Google Ads Management','1-Dec-23','1-Jan-25','13','Carson Pavia','Brennan Haelig','Referral','$1,500.00','Churned - Internal Change or Temporary Pause'],
+['Dynamicare','Meta Ads Management','31-Oct-24','31-Dec-24','2','Kyle Tuttle','Brennan Haelig','Inbound','$0.00','Churned - Internal Change or Temporary Pause'],
+['TruSmile Veneers','Meta Ads Management','30-May-24','31-Dec-24','7','Jonathan Vinther','Brandin Good','Upwork','$1,500.00','Churned'],
+['Skypoint Recovery','Google Ads Management','17-Jan-24','31-Dec-24','11','Carson Pavia','Brennan Haelig','Upwork','$1,500.00','Churned'],
+['Dream Recovery','Meta Ads Management','1-May-23','31-Dec-24','19','Jonathan Vinther','Brandin Good','Upwork','$3,900.00','Churned'],
+['Brown Chiro','Meta Ads Management','6-Jun-21','31-Dec-24','42','','Brennan Haelig','Referral','$1,497.00','Churned'],
+['Hannah Anna','Meta Ads Management','28-Jun-24','27-Dec-24','5','Jonathan Vinther','Brandin Good','Referral','$1,000.00','Churned'],
+['Hannah Anna','Google Ads Management','28-Jun-24','27-Dec-24','5','Carson Pavia','Brandin Good','Referral','$1,000.00','Churned'],
+['Cocoa Beach Catamaran','Google Ads Management','31-Oct-24','18-Dec-24','1','Carson Pavia','Brandin Good','Upwork','$500.00','Churned'],
+['Cocoa Beach Catamaran','Meta Ads Management','23-Sep-24','18-Dec-24','2','Kyle Tuttle','Brandin Good','Upwork','$1,000.00','Churned'],
+['SURF Dating','Meta Ads Management','22-Aug-24','18-Dec-24','3','Kyle Tuttle','Brennan Haelig','Upwork','$750.00','Churned'],
+['SURF Dating','Google Ads Management','22-Aug-24','18-Dec-24','3','Carson Pavia','Brennan Haelig','Upwork','$750.00','Churned'],
+['Floricity','Google Ads Management','3-Sep-24','3-Dec-24','3','Carson Pavia','Brennan Haelig','Referral','$1,000.00','Churned'],
+['Just Crypto','Meta Ads Management','16-Oct-24','1-Dec-24','1','Kyle Tuttle','Brandin Good','Referral','$1,500.00','Churned'],
+['American Faith','Meta Ads Management','12-Aug-24','1-Dec-24','3','Kyle Tuttle','Brandin Good','Referral','$1,000.00','Churned'],
+['Home Renovation Helper','Meta Ads Management','6-Jul-24','1-Dec-24','4','Kyle Tuttle','Brennan Haelig','Upwork','$1,000.00','Churned'],
+['Clixlo','Google Ads Management','6-Dec-23','30-Nov-24','11','Chris Erickson','Brandin Good','Upwork','$750.00','Churned - Internal Change or Temporary Pause'],
+['Clixlo','Meta Ads Management','6-Dec-23','30-Nov-24','11','Kyle Tuttle','Brandin Good','Upwork','$750.00','Churned - Internal Change or Temporary Pause'],
+['Fishskyn','Google Ads Management','22-Aug-24','30-Nov-24','3','Carson Pavia','Brennan Haelig','Upwork','$1,250.00','Churned'],
+['Fishskyn','Meta Ads Management','22-Aug-24','30-Nov-24','3','Jonathan Vinther','Brennan Haelig','Upwork','$1,750.00','Churned'],
+['24 Hour Answers','Meta Ads Management','1-Dec-23','29-Nov-24','11','Kyle Tuttle','Brandin Good','Upwork','$1,500.00','Churned'],
+['Banners on A Roll','LinkedIn Ads Management','4-Jun-24','13-Nov-24','5','Chris Erickson','Brennan Haelig','Upwork','$1,000.00','Churned'],
+['American Faith','Google Ads Management','11-Sep-24','5-Nov-24','1','Carson Pavia','Brandin Good','Referral','$1,000.00','Churned'],
+['Greentech HVAC','Google Ads Management','8-Aug-24','5-Nov-24','2','Carson Pavia','Brandin Good','Referral','$1,000.00','Churned'],
+['Centarus','Google Ads Management','4-Sep-24','4-Nov-24','2','Carson Pavia','Brennan Haelig','Upwork','$1,000.00','Churned'],
+['Mindforce','Meta Ads Management','23-Oct-24','1-Nov-24','0','Jonathan Vinther','Brennan Haelig','Referral','$1,000.00','Churned'],
+['Jess Lawrence','Meta Ads Management','5-Sep-24','22-Oct-24','1','Kyle Tuttle','Brennan Haelig','Inbound','$1,000.00','Churned'],
+['Rockmarq','Meta Ads Management','6-Sep-24','21-Oct-24','1','Jonathan Vinther','Brennan Haelig','Upwork','$1,000.00','Churned'],
+['GGC Racing','Google Ads Management','18-Sep-24','19-Oct-24','1','Carson Pavia','Brandin Good','Upwork','$1,500.00','Churned'],
+['Hops & Harvest','Google Ads Management','16-Jul-24','11-Oct-24','2','JJ Crawford','Brennan Haelig','Inbound','$800.00','Churned'],
+['Greentech HVAC','Meta Ads Management','3-Aug-24','7-Oct-24','2','Kyle Tuttle','Brandin Good','Referral','$1,500.00','Churned'],
+['Wanderlust Wealth','Meta Ads Management','4-Sep-24','4-Oct-24','1','Kyle Tuttle','Brennan Haelig','Upwork','$1,000.00','Churned'],
+['Tuel - Auto Insurance','Meta Ads Management','25-Aug-24','2-Oct-24','1','Kyle Tuttle','Brennan Haelig','Referral','$1,000.00','Churned'],
+['Health Career Certs','Meta Ads Management','10-May-24','2-Oct-24','4','Jonathan Vinther','Brandin Good','Inbound','$1,000.00','Churned'],
+['Health Career Certs','Google Ads Management','10-May-24','2-Oct-24','4','Carson Pavia','Brandin Good','Inbound','$1,000.00','Churned'],
+['G2','Google Ads Management','23-Nov-23','28-Sep-24','10','Carson Pavia','Brennan Haelig','Upwork','$200.00','Churned'],
+['G2','Meta Ads Management','23-Nov-23','28-Sep-24','10','Jonathan Vinther','Brennan Haelig','Upwork','$200.00','Churned'],
+['Creator Aviator','Meta Ads Management','12-Aug-24','27-Sep-24','1','Kyle Tuttle','Brandin Good','Upwork','$1,000.00','Churned'],
+['Perimtec','Meta Ads Management','8-Jul-24','23-Sep-24','2','Kyle Tuttle','Brandin Good','Upwork','$675.00','Churned'],
+['Perimtec','Google Ads Management','8-Jul-24','23-Sep-24','2','JJ Crawford','Brandin Good','Upwork','$675.00','Churned'],
+['My Legal Academy','Meta Ads Management','14-Mar-24','19-Sep-24','6','Kyle Tuttle','Brandin Good','Upwork','$1,500.00','Churned'],
+['NanoHex','Meta Ads Management','13-Aug-24','17-Sep-24','1','Jonathan Vinther','Brennan Haelig','Upwork','$1,000.00','Churned'],
+['CraftyCatSVG','Meta Ads Management','5-Aug-24','17-Sep-24','1','Jonathan Vinther','Brennan Haelig','Upwork','$2,000.00','Churned'],
+['Cuhvet','Meta Ads Management','10-Aug-24','12-Sep-24','1','Kyle Tuttle','Brandin Good','Upwork','$1,000.00','Churned'],
+['Ascendo Ads','Meta Ads Management','1-Dec-23','12-Sep-24','9','Kyle Tuttle','Brennan Haelig','Referral','$1,500.00','Churned'],
+['Vitality Cycles','Meta Ads Management','15-Aug-24','5-Sep-24','0','Jonathan Vinther','Brandin Good','Upwork','$1,000.00','Churned'],
+['HiveDrive','Meta Ads Management','1-May-24','5-Sep-24','4','Kyle Tuttle','Brennan Haelig','Referral','$1,550.00','Churned'],
+['Home Renovation Helper','Google Ads Management','6-Jul-24','1-Sep-24','1','Carson Pavia','Brennan Haelig','Upwork','$1,000.00','Churned'],
+['Severn River Publishing','Meta Ads Management','10-Jun-24','31-Aug-24','2','Jonathan Vinther','Brennan Haelig','Upwork','$1,500.00','Churned'],
+['Arrow East','HL Unlimited','29-Jun-23','30-Aug-24','14','','Brennan Haelig','Upwork','$1,000.00','Churned'],
+['CEO Life','Meta Ads Management','22-May-24','28-Aug-24','3','Kyle Tuttle','Brandin Good','Inbound','$4,100.00','Churned'],
+['B2B Ink and Toner','Google Ads Management','27-Jun-24','22-Aug-24','1','JJ Crawford','Brandin Good','Upwork','$1,500.00','Churned'],
+['UFEELGOOD','Google Ads Management','29-Apr-24','21-Aug-24','3','JJ Crawford','Brennan Haelig','Inbound','$600.00','Churned'],
+['The Well Equipped Coach','LinkedIn Ads Management','2-Apr-24','20-Aug-24','4','Kyle Tuttle','Brennan Haelig','Upwork','$1,500.00','Churned'],
+['Arielle Executive','LinkedIn Ads Management','27-May-24','15-Aug-24','2','Kyle Tuttle','Brandin Good','Upwork','$1,500.00','Churned'],
+['All Western Mortgage','Google Ads Management','13-Jan-24','15-Aug-24','7','Carson Pavia','Brandin Good','Upwork','$1,500.00','Churned'],
+['Ascendo Ads','Google Ads Management','1-Dec-23','13-Aug-24','8','JJ Crawford','Brennan Haelig','Referral','$1,500.00','Churned'],
+['Infinity Well','Meta Ads Management','7-May-24','9-Aug-24','3','Jonathan Vinther','Brandin Good','Upwork','$1,500.00','Churned'],
+['Brothhh','Meta Ads Management','10-Jul-24','7-Aug-24','0','Jonathan Vinther','Brandin Good','Upwork','$1,000.00','Churned'],
+['Nara Neck','Meta Ads Management','9-Jul-24','6-Aug-24','0','Jonathan Vinther','Brandin Good','Upwork','$1,250.00','Churned'],
+['Nara Neck','Google Ads Management','9-Jul-24','6-Aug-24','0','Carson Pavia','Brandin Good','Upwork','$1,250.00','Churned'],
+['UPEZ','Meta Ads Management','11-Jul-24','5-Aug-24','0','Jonathan Vinther','Brandin Good','Referral','$1,000.00','Churned'],
+['Journey Homeschool','Google Ads Management','1-Aug-23','1-Aug-24','12','JJ Crawford','Brennan Haelig','Upwork','$1,000.00','Churned'],
+['Journey Homeschool','Meta Ads Management','1-Aug-23','1-Aug-24','12','Jonathan Vinther','Brennan Haelig','Upwork','$1,500.00','Churned'],
+['Traktive','LinkedIn Ads Management','28-Jun-24','31-Jul-24','1','Kyle Tuttle','Brandin Good','Referral','$1,500.00','Churned'],
+['Brave','Google Ads Management','1-Jul-24','30-Jul-24','0','Carson Pavia','Brandin Good','Upwork','$1,000.00','Churned'],
+['Travorio','Meta Ads Management','5-Jun-24','30-Jul-24','1','Kyle Tuttle','Brandin Good','Upwork','$800.00','Churned'],
+['Travorio','Google Ads Management','5-Jun-24','30-Jul-24','1','JJ Crawford','Brandin Good','Upwork','$750.00','Churned'],
+['My Phone AI','Meta Ads Management','29-May-24','30-Jul-24','2','Jonathan Vinther','Brandin Good','Upwork','$2,250.00','Churned'],
+['Dynamic Video Group','Meta Ads Management','18-Jun-24','18-Jul-24','1','Kyle Tuttle','Brennan Haelig','Upwork','$1,500.00','Churned'],
+['The Well Equipped Coach','Meta Ads Management','19-May-24','16-Jul-24','1','Kyle Tuttle','Brennan Haelig','Upwork','$400.00','Churned'],
+['UFEELGOOD','Meta Ads Management','28-May-24','15-Jul-24','1','Jonathan Vinther','Brennan Haelig','Inbound','$600.00','Churned'],
+['Logo Animators','Meta Ads Management','5-Jun-24','10-Jul-24','1','Jonathan Vinther','Brennan Haelig','Upwork','$2,000.00','Churned'],
+['Catipult','LinkedIn Ads Management','10-Oct-23','3-Jul-24','8','Chris Erickson','Brennan Haelig','Upwork','$1,500.00','Churned'],
+['Sofia Digital','HL Unlimited','1-Mar-24','30-Jun-24','3','Abdul Hadi','Brandin Good','Upwork','$4,997.00','Churned'],
+['Cauldron HQ','Meta Ads Management','7-May-24','29-Jun-24','1','Kyle Tuttle','Brandin Good','Referral','$1,500.00','Churned'],
+['Lou Lou Australia','Meta Ads Management','27-Feb-24','27-Jun-24','4','Jonathan Vinther','Brandin Good','Email','$2,000.00','Churned'],
+['Lou Lou Australia','Google Ads Management','27-Feb-24','27-Jun-24','4','Carson Pavia','Brandin Good','Email','$1,000.00','Churned'],
+['Ascendo Website','Web Design','31-Aug-23','27-Jun-24','9','Jean Angelo Perea','Brennan Haelig','Referral','$6,000.00','Churned'],
+['Maximum Living','Google Ads Management','1-Jan-24','25-Jun-24','5','JJ Crawford','Brennan Haelig','Referral','$1,500.00','Churned'],
+['Shielded Beauty','Google Ads Management','4-Mar-24','21-Jun-24','3','Carson Pavia','Brandin Good','Referral','$1,250.00','Churned'],
+['Shielded Beauty','Meta Ads Management','4-Mar-24','21-Jun-24','3','Jonathan Vinther','Brandin Good','Referral','$1,250.00','Churned'],
+['Eco-NRGY','Google Ads Management','3-May-24','18-Jun-24','1','Carson Pavia','Brennan Haelig','Inbound','$1,000.00','Churned'],
+['EZ Street Signs','Google Ads Management','1-Feb-24','18-Jun-24','4','JJ Crawford','Brandin Good','Upwork','$800.00','Churned'],
+['Institute of Reading Development','Google Ads Management','8-May-24','29-May-24','0','Carson Pavia','Brennan Haelig','Upwork','$4,000.00','Churned'],
+['MetPure','Google Ads Management','30-Apr-24','24-May-24','0','Carson Pavia','Brandin Good','Upwork','$1,500.00','Churned'],
+['Ascendo Ads','LinkedIn Ads Management','1-Dec-23','20-May-24','5','Kyle Tuttle','Brennan Haelig','Referral','$1,500.00','Churned'],
+['PWDRS','Google Ads Management','12-Oct-23','30-Apr-24','6','Carson Pavia','Brandin Good','Referral','$1,500.00','Churned'],
+['Local VR','Google Ads Management','1-Aug-23','30-Apr-24','8','Chris Erickson','Brennan Haelig','Upwork','$2,500.00','Churned'],
+['CEOLife churned','Meta Ads Management','11-Oct-23','15-Apr-24','6','Kyle Tuttle','Brandin Good','Upwork','$2,500.00','Churned'],
+['Aristotle Performance','LinkedIn Ads Management','14-Mar-24','13-Apr-24','0','Chris Erickson','Brennan Haelig','Email','$1,125.00','Churned'],
+['Foundation Escrow','Meta Ads Management','5-Dec-23','3-Apr-24','3','Kyle Tuttle','Brandin Good','Upwork','$1,500.00','Churned']
+];
+
+const ALL = RAW.map(r=>({client:r[0],service:r[1],start:r[2],end:r[3],months:+r[4],team:r[5],owner:r[6],source:r[7],retainer:parseFloat(String(r[8]).replace(/[$,]/g,'')),reason:r[9]}));
+
+const REASON_SHORT = {
+  'Churned - Internal Change or Temporary Pause': 'Internal / Pause',
+  'Churned - Low ROAS or Lead Quality':           'Low ROAS / Lead Quality',
+  'Churned - Unhappy with Service, Communication or Creatives': 'Service / Comms',
+  'Churned - Poor Funnel Conversion / Sales Process': 'Poor Funnel',
+  'Churned - Bad Fit': 'Bad Fit',
+  'Churned': 'Not Categorized',
+};
+const REASON_ORDER = Object.keys(REASON_SHORT);
+// controllable = our fault; uncontrollable = client side
+const REASON_CTRL = {
+  'Churned - Internal Change or Temporary Pause': false,
+  'Churned - Low ROAS or Lead Quality':           true,
+  'Churned - Unhappy with Service, Communication or Creatives': true,
+  'Churned - Poor Funnel Conversion / Sales Process': false,
+  'Churned - Bad Fit': false,
+  'Churned': null,
+};
+const REASON_COLORS = {
+  'Churned - Internal Change or Temporary Pause': '#1390eb',
+  'Churned - Low ROAS or Lead Quality':           '#ef4444',
+  'Churned - Unhappy with Service, Communication or Creatives': '#f59e0b',
+  'Churned - Poor Funnel Conversion / Sales Process': '#c084fc',
+  'Churned - Bad Fit': '#fde047',
+  'Churned': 'rgba(255,255,255,0.25)',
+};
+let filtered=[...ALL], sortKey='months', sortDir=1;
+
+// ── helpers ──
+const sum=a=>a.reduce((s,v)=>s+v,0);
+const avg=a=>a.length?sum(a)/a.length:0;
+const ecRate=a=>a.length?a.filter(r=>r.months<=3).length/a.length:0;
+const median=a=>{const s=[...a].sort((x,y)=>x-y),m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2;};
+function groupBy(arr,key){const m={};arr.forEach(r=>{(m[r[key]]=m[r[key]]||[]).push(r);});return m;}
+function parseDate(d){const mo={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};const p=d.split('-');let y=parseInt(p[2]);if(y<100)y+=2000;return new Date(y,mo[p[1]],parseInt(p[0]));}
+function heatCls(r){if(r>=0.75)return'heat-high';if(r>=0.50)return'heat-mid';if(r>=0.25)return'heat-low';return'heat-info';}
+function rateCol(r){if(r>=0.80)return'#ef4444';if(r>=0.65)return'#f59e0b';if(r>=0.45)return'#1390eb';return'#22c55e';}
+function fmt$(v){return'$'+v.toLocaleString();}
+
+// ── charts ──
+const charts={};
+function kill(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+const TOOLTIP={backgroundColor:'rgba(0,10,30,0.92)',borderColor:'rgba(19,144,235,0.3)',borderWidth:1,titleColor:'#fff',bodyColor:'rgba(255,255,255,0.65)',padding:10};
+
+function renderKPIs(d){
+  const n=d.length,ec=d.filter(r=>r.months<=3),imm=d.filter(r=>r.months===0),lt=d.filter(r=>r.months>=7);
+  const revT=sum(d.map(r=>r.retainer)),revEc=sum(ec.map(r=>r.retainer));
+  const avgM=avg(d.map(r=>r.months)),medM=median(d.map(r=>r.months));
+  const pct=v=>(v/n*100).toFixed(1)+'%';
+
+  set('kpi-er',pct(ec.length));
+  set('kpi-er-d',`${ec.length} of ${n} contracts`);
+  set('kpi-avg',avgM.toFixed(1));
+  set('kpi-med',`Median: ${medM} month${medM===1?'':'s'}`);
+  set('kpi-imm',pct(imm.length));
+  set('kpi-imm-d',`${imm.length} contracts · $${(sum(imm.map(r=>r.retainer))/1000).toFixed(0)}K`);
+  set('kpi-lt',pct(lt.length));
+  set('kpi-lt-d',`${lt.length} contracts · $${(sum(lt.map(r=>r.retainer))/1000).toFixed(0)}K`);
+  set('kpi-rev-ec',revT?(revEc/revT*100).toFixed(0)+'%':'—');
+  set('kpi-rev-ec-d',`${fmt$(Math.round(revEc/1000)*1000).replace('$','$').slice(0,-3)}K of ${fmt$(Math.round(revT/1000)*1000).replace('$','$').slice(0,-3)}K`);
+
+  document.getElementById('badge-ec').textContent=`${pct(ec.length)} early churn ≤3 mo`;
+  document.getElementById('badge-avg').textContent=`Avg lifetime ${avgM.toFixed(1)} mo`;
+}
+function set(id,v){const el=document.getElementById(id);if(el)el.textContent=v;}
+
+function renderFunnel(d){
+  const n=d.length;
+  const B=[
+    {l:'Immediate (0 mo)',f:r=>r.months===0,c:'#ef4444'},
+    {l:'Very short (1 mo)',f:r=>r.months===1,c:'#f97316'},
+    {l:'Short (2–3 mo)',f:r=>r.months>=2&&r.months<=3,c:'#f59e0b'},
+    {l:'Medium (4–6 mo)',f:r=>r.months>=4&&r.months<=6,c:'#1390eb'},
+    {l:'Long (7–12 mo)',f:r=>r.months>=7&&r.months<=12,c:'#22c55e'},
+    {l:'Loyal (13+ mo)',f:r=>r.months>=13,c:'#c084fc'},
+  ];
+  const mx=Math.max(...B.map(b=>d.filter(b.f).length));
+  document.getElementById('funnel-wrap').innerHTML=B.map(b=>{
+    const cnt=d.filter(b.f).length;
+    const pct=(cnt/n*100).toFixed(1);
+    const w=mx?(cnt/mx*100).toFixed(0):0;
+    return`<div class="funnel-row">
+      <span class="funnel-label">${b.l}</span>
+      <div class="funnel-bar-bg"><div class="funnel-bar" style="width:${w}%;background:${b.c}"></div></div>
+      <span class="funnel-pct" style="color:${b.c}">${pct}%</span>
+      <span class="funnel-n">${cnt}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderMonthly(d){
+  kill('monthly');
+  const m={};
+  d.forEach(r=>{
+    const dt=parseDate(r.end);
+    const k=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0');
+    (m[k]=m[k]||{all:[],ec:[]}).all.push(r);
+    if(r.months<=3) m[k].ec.push(r);
+  });
+  const keys=Object.keys(m).sort();
+  const MO=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const lbls=keys.map(k=>{const[y,mo]=k.split('-');return MO[parseInt(mo)-1]+' '+y.slice(2);});
+  const ctx=document.getElementById('chart-monthly').getContext('2d');
+  charts['monthly']=new Chart(ctx,{type:'bar',data:{labels:lbls,datasets:[
+    {label:'Contracts',data:keys.map(k=>m[k].all.length),backgroundColor:'rgba(19,144,235,0.55)',borderColor:'#1390eb',borderWidth:1,borderRadius:3,yAxisID:'y',order:2},
+    {label:'Early Churn %',data:keys.map(k=>+(m[k].ec.length/m[k].all.length*100).toFixed(1)),type:'line',borderColor:'#ef4444',backgroundColor:'rgba(239,68,68,0.06)',borderWidth:2,pointRadius:3,pointBackgroundColor:'#ef4444',tension:0.35,yAxisID:'y1',order:1}
+  ]},options:{responsive:true,maintainAspectRatio:false,
+    interaction:{mode:'index',intersect:false},
+    plugins:{legend:{display:true,position:'top',align:'end',labels:{color:'rgba(255,255,255,0.55)',font:{size:11},boxWidth:10,boxHeight:10,padding:14}},tooltip:{...TOOLTIP,callbacks:{label:c=>c.datasetIndex===0?` ${c.raw} contracts`:` ${c.raw}% early churn`}}},
+    scales:{
+      x:{ticks:{color:'rgba(255,255,255,0.45)',font:{size:10}},grid:{display:false}},
+      y:{ticks:{color:'rgba(255,255,255,0.45)',font:{size:10}},grid:{color:'rgba(255,255,255,0.06)'}},
+      y1:{position:'right',min:0,max:100,ticks:{color:'rgba(239,68,68,0.8)',font:{size:10},callback:v=>v+'%'},grid:{drawOnChartArea:false}}
+    }
+  }});
+}
+
+function renderSrcChart(d){
+  kill('src');
+  const g=groupBy(d,'source');
+  const srcs=['Upwork','Referral','Inbound','Email'].filter(s=>g[s]);
+  const rates=srcs.map(s=>+(ecRate(g[s])*100).toFixed(1));
+  const avgs=srcs.map(s=>+avg(g[s].map(r=>r.months)).toFixed(1));
+  const ctx=document.getElementById('chart-src').getContext('2d');
+  charts['src']=new Chart(ctx,{type:'bar',data:{labels:srcs,datasets:[
+    {label:'Early Churn %',data:rates,backgroundColor:rates.map(r=>rateCol(r/100)+'99'),borderColor:rates.map(r=>rateCol(r/100)),borderWidth:1,borderRadius:4,yAxisID:'y'},
+    {label:'Avg Lifetime (mo)',data:avgs,type:'line',borderColor:'#1390eb',backgroundColor:'transparent',borderWidth:2,pointRadius:4,pointBackgroundColor:'#1390eb',tension:0.35,yAxisID:'y1'}
+  ]},options:{responsive:true,maintainAspectRatio:false,
+    interaction:{mode:'index',intersect:false},
+    plugins:{legend:{display:true,position:'top',align:'end',labels:{color:'rgba(255,255,255,0.55)',font:{size:10},boxWidth:10,boxHeight:10,padding:10}},tooltip:{...TOOLTIP,callbacks:{label:c=>c.datasetIndex===0?` ${c.raw}% early churn`:` ${c.raw} mo avg`}}},
+    scales:{
+      x:{ticks:{color:'rgba(255,255,255,0.45)',font:{size:10}},grid:{display:false}},
+      y:{min:0,max:100,ticks:{color:'rgba(255,255,255,0.45)',font:{size:10},callback:v=>v+'%'},grid:{color:'rgba(255,255,255,0.06)'}},
+      y1:{position:'right',ticks:{color:'rgba(19,144,235,0.8)',font:{size:10},callback:v=>v+'mo'},grid:{drawOnChartArea:false}}
+    }
+  }});
+}
+
+function renderSvcChart(d){
+  kill('svc');
+  const g=groupBy(d,'service');
+  const sN={'Meta Ads Management':'Meta','Google Ads Management':'Google','LinkedIn Ads Management':'LinkedIn','Bing Ads Management':'Bing','TikTok Ads Management':'TikTok','Snap Ads Management':'Snap','HL Unlimited':'HL'};
+  const svcs=Object.keys(g).filter(s=>g[s].length>=3).sort((a,b)=>ecRate(g[b])-ecRate(g[a]));
+  const rates=svcs.map(s=>+(ecRate(g[s])*100).toFixed(1));
+  const ctx=document.getElementById('chart-svc').getContext('2d');
+  charts['svc']=new Chart(ctx,{type:'bar',data:{labels:svcs.map(s=>sN[s]||s),datasets:[
+    {data:rates,backgroundColor:rates.map(r=>rateCol(r/100)+'99'),borderColor:rates.map(r=>rateCol(r/100)),borderWidth:1,borderRadius:4}
+  ]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
+    plugins:{legend:{display:false},tooltip:{...TOOLTIP,callbacks:{label:c=>` ${c.raw}% early churn`}}},
+    scales:{
+      x:{min:0,max:100,ticks:{color:'rgba(255,255,255,0.45)',font:{size:10},callback:v=>v+'%'},grid:{color:'rgba(255,255,255,0.06)'}},
+      y:{ticks:{color:'rgba(255,255,255,0.55)',font:{size:11}},grid:{display:false}}
+    }
+  }});
+}
+
+function renderRevChart(d){
+  kill('rev');
+  const B=[
+    {l:'Immediate (0–1 mo)',f:r=>r.months<=1,c:'#ef4444'},
+    {l:'Short (2–3 mo)',f:r=>r.months>=2&&r.months<=3,c:'#f59e0b'},
+    {l:'Medium (4–6 mo)',f:r=>r.months>=4&&r.months<=6,c:'#1390eb'},
+    {l:'Long (7+ mo)',f:r=>r.months>=7,c:'#22c55e'},
+  ];
+  const revs=B.map(b=>sum(d.filter(b.f).map(r=>r.retainer)));
+  const ctx=document.getElementById('chart-rev').getContext('2d');
+  charts['rev']=new Chart(ctx,{type:'doughnut',data:{labels:B.map(b=>b.l),datasets:[{data:revs,backgroundColor:B.map(b=>b.c+'bb'),borderColor:B.map(b=>b.c),borderWidth:1,hoverOffset:8}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'58%',
+      plugins:{legend:{display:true,position:'bottom',labels:{color:'rgba(255,255,255,0.55)',font:{size:10},boxWidth:8,boxHeight:8,padding:8}},
+        tooltip:{...TOOLTIP,callbacks:{label:c=>{const t=sum(revs);return ` ${fmt$(c.raw)} — ${(c.raw/t*100).toFixed(0)}%`;}}}
+      }
+    }
+  });
+}
+
+function renderLeaderboard(containerId, groupedData, maxSz){
+  const entries=Object.entries(groupedData).filter(([k])=>k!=='Unknown').sort((a,b)=>ecRate(b[1])-ecRate(a[1]));
+  const maxR=Math.max(...entries.map(([,v])=>ecRate(v)));
+  document.getElementById(containerId).innerHTML=entries.map(([name,grp])=>{
+    const r=ecRate(grp);
+    const avgM=avg(grp.map(x=>x.months)).toFixed(1);
+    const w=maxR?(r/maxR*100).toFixed(0):0;
+    const col=rateCol(r);
+    return`<div class="lb-row">
+      <span class="lb-name">${name}</span>
+      <div class="lb-bar-bg"><div class="lb-bar" style="width:${w}%;background:${col}"></div></div>
+      <span class="lb-pct" style="color:${col}">${(r*100).toFixed(0)}%</span>
+      <span class="lb-meta">${avgM} mo avg</span>
+      <span class="lb-meta" style="font-size:10px">${grp.length}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderMatrix(d){
+  const mainSvcs=['Meta Ads Management','Google Ads Management','LinkedIn Ads Management'];
+  const mainSrcs=['Upwork','Referral','Inbound'];
+  const sN={'Meta Ads Management':'Meta','Google Ads Management':'Google','LinkedIn Ads Management':'LinkedIn'};
+  let h=`<thead><tr><th>Service / Source</th>${mainSrcs.map(s=>`<th>${s}</th>`).join('')}<th>Total</th></tr></thead><tbody>`;
+  mainSvcs.forEach(svc=>{
+    h+=`<tr><td style="font-weight:600;font-size:12px">${sN[svc]}</td>`;
+    mainSrcs.forEach(src=>{
+      const grp=d.filter(r=>r.service===svc&&r.source===src);
+      if(!grp.length){h+=`<td><span style="color:var(--muted)">—</span></td>`;return;}
+      const r=ecRate(grp);
+      h+=`<td><span class="heat ${heatCls(r)}">${(r*100).toFixed(0)}%</span><span class="matrix-n">${grp.length}</span></td>`;
+    });
+    const sa=d.filter(r=>r.service===svc),sr=ecRate(sa);
+    h+=`<td><span class="heat ${heatCls(sr)}">${(sr*100).toFixed(0)}%</span><span class="matrix-n">${sa.length}</span></td></tr>`;
+  });
+  h+=`<tr><td style="color:var(--muted);font-size:11px;font-weight:500">Overall</td>`;
+  mainSrcs.forEach(src=>{
+    const grp=d.filter(r=>r.source===src);
+    if(!grp.length){h+=`<td>—</td>`;return;}
+    const r=ecRate(grp);
+    h+=`<td><span class="heat ${heatCls(r)}">${(r*100).toFixed(0)}%</span><span class="matrix-n">${grp.length}</span></td>`;
+  });
+  const or=ecRate(d);
+  h+=`<td><span class="heat ${heatCls(or)}">${(or*100).toFixed(0)}%</span><span class="matrix-n">${d.length}</span></td></tr></tbody>`;
+  document.getElementById('matrix').innerHTML=h;
+}
+
+// ── Churn reason rendering ──
+
+function renderReasonKPIs(d){
+  const n=d.length;
+  REASON_ORDER.forEach((r,i)=>{
+    const grp=d.filter(x=>x.reason===r);
+    const pct=(grp.length/n*100).toFixed(1)+'%';
+    const avgM=avg(grp.map(x=>x.months)).toFixed(1);
+    set(`r-kpi-${i}`,pct);
+    set(`r-kpi-${i}d`,`${grp.length} contracts · avg ${avgM} mo`);
+  });
+}
+
+function renderReasonDonut(d){
+  kill('reason-donut');
+  const counts=REASON_ORDER.map(r=>d.filter(x=>x.reason===r).length);
+  const ctx=document.getElementById('chart-reason-donut').getContext('2d');
+  charts['reason-donut']=new Chart(ctx,{type:'doughnut',data:{
+    labels:REASON_ORDER.map(r=>REASON_SHORT[r]),
+    datasets:[{data:counts,backgroundColor:REASON_ORDER.map(r=>REASON_COLORS[r]+'bb'),borderColor:REASON_ORDER.map(r=>REASON_COLORS[r]),borderWidth:1,hoverOffset:8}]
+  },options:{responsive:true,maintainAspectRatio:false,cutout:'58%',plugins:{
+    legend:{display:true,position:'bottom',labels:{color:'rgba(255,255,255,0.55)',font:{size:10},boxWidth:8,boxHeight:8,padding:8}},
+    tooltip:{...TOOLTIP,callbacks:{label:c=>{const t=sum(counts);return ` ${c.label}: ${c.raw} (${(c.raw/t*100).toFixed(0)}%)`;}}},
+  }}});
+}
+
+function renderReasonStacked(canvasId,groupKey,keys,d){
+  kill(canvasId);
+  const g=groupBy(d||filtered,groupKey);
+  const labels=keys.filter(k=>g[k]);
+  const datasets=REASON_ORDER.map(r=>({
+    label:REASON_SHORT[r],
+    data:labels.map(k=>{const grp=g[k]||[];return grp.length?+(d3filter(grp,r)/grp.length*100).toFixed(1):0;}),
+    backgroundColor:REASON_COLORS[r]+'bb',
+    borderColor:REASON_COLORS[r],
+    borderWidth:0,
+    borderRadius:2,
+  }));
+  const ctx=document.getElementById(canvasId).getContext('2d');
+  charts[canvasId]=new Chart(ctx,{type:'bar',data:{labels,datasets},options:{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:true,position:'top',align:'end',labels:{color:'rgba(255,255,255,0.55)',font:{size:10},boxWidth:8,boxHeight:8,padding:8}},
+      tooltip:{...TOOLTIP,mode:'index',intersect:false,callbacks:{label:c=>` ${c.dataset.label}: ${c.raw}%`}}},
+    scales:{
+      x:{stacked:true,ticks:{color:'rgba(255,255,255,0.55)',font:{size:11}},grid:{display:false}},
+      y:{stacked:true,min:0,max:100,ticks:{color:'rgba(255,255,255,0.45)',font:{size:10},callback:v=>v+'%'},grid:{color:'rgba(255,255,255,0.06)'}}
+    }
+  }});
+}
+function d3filter(arr,reason){return arr.filter(r=>r.reason===reason).length;}
+
+function renderReasonLT(d){
+  kill('reason-lt');
+  const avgs=REASON_ORDER.map(r=>{
+    const grp=d.filter(x=>x.reason===r);
+    return grp.length?+avg(grp.map(x=>x.months)).toFixed(1):0;
+  });
+  const ctx=document.getElementById('chart-reason-lt').getContext('2d');
+  charts['reason-lt']=new Chart(ctx,{type:'bar',data:{
+    labels:REASON_ORDER.map(r=>REASON_SHORT[r]),
+    datasets:[{data:avgs,backgroundColor:REASON_ORDER.map(r=>REASON_COLORS[r]+'99'),borderColor:REASON_ORDER.map(r=>REASON_COLORS[r]),borderWidth:1,borderRadius:4}]
+  },options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{...TOOLTIP,callbacks:{label:c=>` ${c.raw} months avg`}}},
+    scales:{
+      x:{ticks:{color:'rgba(255,255,255,0.45)',font:{size:10}},grid:{display:false}},
+      y:{ticks:{color:'rgba(255,255,255,0.45)',font:{size:10},callback:v=>v+' mo'},grid:{color:'rgba(255,255,255,0.06)'}}
+    }
+  }});
+}
+
+function renderCtrlSplit(d){
+  const ctrl=d.filter(r=>REASON_CTRL[r.reason]);
+  const unctrl=d.filter(r=>!REASON_CTRL[r.reason]);
+  const n=d.length;
+  const ctrlRev=sum(ctrl.map(r=>r.retainer));
+  const unctrlRev=sum(unctrl.map(r=>r.retainer));
+  const ctrlPct=(ctrl.length/n*100).toFixed(0);
+  const unctrlPct=(unctrl.length/n*100).toFixed(0);
+  document.getElementById('ctrl-split').innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:8px;padding:14px">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin-bottom:4px">Controllable</div>
+        <div style="font-family:'Anton',sans-serif;font-size:28px;color:var(--red)">${ctrlPct}%</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:4px">${ctrl.length} contracts · $${(ctrlRev/1000).toFixed(0)}K revenue</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:6px">Low ROAS + Service/Comms</div>
+      </div>
+      <div style="background:rgba(19,144,235,0.08);border:1px solid rgba(19,144,235,0.25);border-radius:8px;padding:14px">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin-bottom:4px">Uncontrollable</div>
+        <div style="font-family:'Anton',sans-serif;font-size:28px;color:var(--blue)">${unctrlPct}%</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:4px">${unctrl.length} contracts · $${(unctrlRev/1000).toFixed(0)}K revenue</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:6px">Internal / Funnel / Bad Fit</div>
+      </div>
+    </div>`;
+}
+
+function renderTMReasonBoard(containerId, targetReason, d){
+  const g=groupBy(d||filtered,'team');
+  const members=Object.keys(g).filter(t=>t!=='Unknown'&&g[t].length>=3)
+    .sort((a,b)=>(d3filter(g[b],targetReason)/g[b].length)-(d3filter(g[a],targetReason)/g[a].length));
+  const maxR=Math.max(...members.map(m=>d3filter(g[m],targetReason)/g[m].length));
+  document.getElementById(containerId).innerHTML=members.map(m=>{
+    const grp=g[m], cnt=d3filter(grp,targetReason), r=cnt/grp.length;
+    const col=r>0.2?'#ef4444':r>0.1?'#f59e0b':'#22c55e';
+    const w=maxR?+(r/maxR*100).toFixed(0):0;
+    return`<div class="lb-row">
+      <span class="lb-name">${m}</span>
+      <div class="lb-bar-bg"><div class="lb-bar" style="width:${w}%;background:${col}"></div></div>
+      <span class="lb-pct" style="color:${col};font-size:12px">${(r*100).toFixed(0)}%</span>
+      <span class="lb-meta">${cnt}/${grp.length}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderReasonAM(d){
+  kill('reason-am');
+  const g=groupBy(d,'owner');
+  const ams=Object.keys(g).sort((a,b)=>g[b].length-g[a].length);
+  const datasets=REASON_ORDER.map(r=>({
+    label:REASON_SHORT[r],
+    data:ams.map(am=>{const grp=g[am];return grp?+(d3filter(grp,r)/grp.length*100).toFixed(1):0;}),
+    backgroundColor:REASON_COLORS[r]+'bb',
+    borderColor:REASON_COLORS[r],
+    borderWidth:0,
+    borderRadius:2,
+  }));
+  const ctx=document.getElementById('chart-reason-am').getContext('2d');
+  charts['reason-am']=new Chart(ctx,{type:'bar',data:{labels:ams,datasets},options:{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:true,position:'top',align:'end',labels:{color:'rgba(255,255,255,0.55)',font:{size:10},boxWidth:8,boxHeight:8,padding:8}},
+      tooltip:{...TOOLTIP,mode:'index',intersect:false,callbacks:{label:c=>` ${c.dataset.label}: ${c.raw}%`}}},
+    scales:{
+      x:{stacked:true,ticks:{color:'rgba(255,255,255,0.55)',font:{size:12}},grid:{display:false}},
+      y:{stacked:true,min:0,max:100,ticks:{color:'rgba(255,255,255,0.45)',font:{size:10},callback:v=>v+'%'},grid:{color:'rgba(255,255,255,0.06)'}}
+    }
+  }});
+}
+
+// ── Table ──
+function chipCls(s){if(s.includes('Meta'))return'chip-meta';if(s.includes('Google'))return'chip-google';if(s.includes('LinkedIn'))return'chip-linkedin';return'chip-other';}
+function ctInfo(m){if(m===0)return{cls:'ct-imm',pill:'<span class="pill pill-imm">IMMEDIATE</span>'};if(m<=3)return{cls:'ct-early',pill:'<span class="pill pill-early">EARLY</span>'};if(m>=7)return{cls:'ct-long',pill:'<span class="pill pill-long">LONG</span>'};return{cls:'ct-mid',pill:''};}
+const sN={'Meta Ads Management':'Meta','Google Ads Management':'Google','LinkedIn Ads Management':'LinkedIn','Bing Ads Management':'Bing','TikTok Ads Management':'TikTok','Snap Ads Management':'Snap'};
+
+function reasonChip(r){
+  const col=REASON_COLORS[r]||'#8b90b0';
+  return`<span style="display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;background:${col}22;color:${col};border:1px solid ${col}44">${REASON_SHORT[r]||r}</span>`;
+}
+
+function renderTable(){
+  const q=document.getElementById('search').value.toLowerCase();
+  let d=filtered.filter(r=>!q||[r.client,r.service,r.team,r.owner,r.source,REASON_SHORT[r.reason]||''].some(v=>v.toLowerCase().includes(q)));
+  d=[...d].sort((a,b)=>{const va=a[sortKey],vb=b[sortKey];return(typeof va==='number'?(va-vb):(String(va).localeCompare(String(vb))))*sortDir;});
+  const tbody=document.getElementById('tbody'),noData=document.getElementById('no-data');
+  if(!d.length){tbody.innerHTML='';noData.style.display='block';return;}
+  noData.style.display='none';
+  tbody.innerHTML=d.map(r=>{
+    const {cls,pill}=ctInfo(r.months);
+    return`<tr>
+      <td style="font-weight:500">${r.client}</td>
+      <td><span class="chip ${chipCls(r.service)}">${sN[r.service]||r.service}</span></td>
+      <td class="${cls}">${r.months} mo${pill}</td>
+      <td>${reasonChip(r.reason)}</td>
+      <td style="color:var(--muted)">${r.source}</td>
+      <td>${r.team==='Unknown'?`<span style="color:var(--muted)">—</span>`:r.team}</td>
+      <td style="color:var(--muted)">${r.owner}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:500">${fmt$(r.retainer)}</td>
+      <td style="color:var(--muted)">${r.end}</td>
+    </tr>`;
+  }).join('');
+}
+
+function sortBy(key){if(sortKey===key)sortDir*=-1;else{sortKey=key;sortDir=1;}renderTable();}
+
+function getFiltered(){
+  const sv=document.getElementById('f-svc').value,sr=document.getElementById('f-src').value,am=document.getElementById('f-am').value,tm=document.getElementById('f-tm').value;
+  return ALL.filter(r=>(!sv||r.service===sv)&&(!sr||r.source===sr)&&(!am||r.owner===am)&&(!tm||r.team===tm));
+}
+
+function renderAll(){
+  filtered=getFiltered();
+  renderKPIs(filtered);
+  renderFunnel(filtered);
+  renderMonthly(filtered);
+  renderSrcChart(filtered);
+  renderSvcChart(filtered);
+  renderRevChart(filtered);
+  renderLeaderboard('am-board',groupBy(filtered,'owner'));
+  renderLeaderboard('tm-board',groupBy(filtered,'team'));
+  renderMatrix(filtered);
+  renderReasonKPIs(filtered);
+  renderReasonDonut(filtered);
+  renderReasonStacked('chart-reason-src','source',['Upwork','Referral','Inbound','Email'],filtered);
+  renderReasonStacked('chart-reason-svc','service',['Meta Ads Management','Google Ads Management','LinkedIn Ads Management'],filtered);
+  renderReasonLT(filtered);
+  renderCtrlSplit(filtered);
+  renderTMReasonBoard('tm-comms-board','Churned - Unhappy with Service, Communication or Creatives',filtered);
+  renderTMReasonBoard('tm-roas-board','Churned - Low ROAS or Lead Quality',filtered);
+  renderReasonAM(filtered);
+  renderTable();
+}
+
+function resetFilters(){
+  ['f-svc','f-src','f-am','f-tm'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('search').value='';
+  renderAll();
+}
+
+['f-svc','f-src','f-am','f-tm'].forEach(id=>document.getElementById(id).addEventListener('change',renderAll));
+renderAll();
+</script>
+</body>
+</html>
